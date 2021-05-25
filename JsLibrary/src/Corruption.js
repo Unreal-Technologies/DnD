@@ -18,6 +18,7 @@ var Corruption = Corruption || (function () {
     },
     
     characters = [],
+    prevAttributes = [],
 
     addAttributes = function(characterID, attributes) {
         for (var key in attributes) {
@@ -59,9 +60,8 @@ var Corruption = Corruption || (function () {
         var corruptionMax = parseInt(corruptionAttribute.get('max'));
         var levelValue = parseInt(levelAttribute.get('current'));
         var corruptionEnabledValue = corruptionEnabledAttribute.get('current');
-        
         return {
-            'enabled': corruptionEnabledValue,
+            'enabled': typeof corruptionEnabledValue === "boolean" ? corruptionEnabledValue : (corruptionEnabledValue+"").toString().toLocaleLowerCase() === 'true',
             'level': levelValue,
             'corruption': {
                 'current': corruptionValue,
@@ -70,18 +70,31 @@ var Corruption = Corruption || (function () {
         };
     },
 
-    timeout = function()
+    attributesChanged = function(charId, attributes)
+    {
+        log('ATTR CHANGED!');
+        log(charId);
+        log(attributes);     
+    },
+
+    progressionLoop = function()
     {
         _.each(characters, function(charId)
         {
             var attributes = loadAttributeValues(charId);
-            log(attributes);
-        })
+            var hash = JSON.stringify(attributes);
+            
+            if(attributes['enabled'] && (prevAttributes[charId] === undefined || prevAttributes[charId] === null || prevAttributes[charId] !== hash))
+            {
+                attributesChanged(charId, attributes);
+                prevAttributes[charId] = hash;
+            }
+        });
         
-//        setTimeout(function()
-//        {
-//            timeout();
-//        }, 1000);
+        setTimeout(function()
+        {
+            progressionLoop();
+        }, 10);
     },
 
     registerEventHandlers = function() {    
@@ -110,7 +123,7 @@ var Corruption = Corruption || (function () {
             }
         });
         
-        timeout();
+        progressionLoop();
     };
     
     return {
