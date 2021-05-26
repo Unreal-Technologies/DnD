@@ -14,6 +14,10 @@ var Corruption = Corruption || (function () {
         'level': {
             "current": 1,
             "max": null
+        },
+        'hp': {
+            'current': 1,
+            'max': 1
         }
     },
     
@@ -55,27 +59,47 @@ var Corruption = Corruption || (function () {
             _characterid: charId,
             name: 'level'
         })[0];
+        var hpAttribute = findObjs({
+            _characterid: charId,
+            name: 'hp'
+        })[0];
         
         var corruptionValue = parseInt(corruptionAttribute.get('current'));
         var corruptionMax = parseInt(corruptionAttribute.get('max'));
         var levelValue = parseInt(levelAttribute.get('current'));
         var corruptionEnabledValue = corruptionEnabledAttribute.get('current');
+        var hpValue = parseInt(hpAttribute.get('current'));
+        var hpMax = parseInt(hpAttribute.get('max'));
         return {
             'enabled': typeof corruptionEnabledValue === "boolean" ? corruptionEnabledValue : (corruptionEnabledValue+"").toString().toLocaleLowerCase() === 'true',
             'level': levelValue,
             'corruption': {
                 'current': corruptionValue,
                 'max': corruptionMax
+            },
+            'hp': {
+                'current': hpValue,
+                'max': hpMax
             }
         };
     },
 
+    attributeDirection = function(current, previous, k1, k2)
+    {
+        return previous === null ? 'N' : (previous[k1][k2] === current[k1][k2] ? 'N' : (previous[k1][k2] < current[k1][k2] ? 'U' : 'D'));
+    },
+
     attributesChanged = function(charId, attributes, previous)
     {
+        var hpDirection = attributeDirection(attributes, previous, 'hp', 'current');
+        var corruptionDirection = attributeDirection(attributes, previous, 'corruption', 'current');
+        
         log('ATTR CHANGED!');
         log(charId);
         log(attributes);  
         log(previous);
+        log(hpDirection);
+        log(corruptionDirection);
     },
 
     progressionLoop = function()
