@@ -33,7 +33,6 @@ var Corruption = Corruption || (function () {
                 })[0];
 
                 if (!foundAttribute) {
-                    log("Attribute " + key + " not found for character ID " + characterID + " Creating.");
                     createObj("attribute", {
                         name: key,
                         current: attributes[key]["current"],
@@ -178,7 +177,6 @@ var Corruption = Corruption || (function () {
                 if(weapData['corruption'] === null)
                 {
                     var key = 'repeating_attack_'+weapData['id']+'_corruption';
-                    log("Attribute " + key + " not found for character ID " + charId + " Creating.");
                     createObj("attribute", {
                         name: key,
                         current: false,
@@ -261,9 +259,12 @@ var Corruption = Corruption || (function () {
             }
         });
         
-        on('click:macro', function(m)
+        on("chat:message", function(msg)
         {
-            log(m);
+            if(msg.rolltemplate === 'atk')
+            {
+                log(msg.content);
+            }
         });
         
         progressionLoop();
