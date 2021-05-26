@@ -70,11 +70,12 @@ var Corruption = Corruption || (function () {
         };
     },
 
-    attributesChanged = function(charId, attributes)
+    attributesChanged = function(charId, attributes, previous)
     {
         log('ATTR CHANGED!');
         log(charId);
-        log(attributes);     
+        log(attributes);  
+        log(previous);
     },
 
     progressionLoop = function()
@@ -83,10 +84,13 @@ var Corruption = Corruption || (function () {
         {
             var attributes = loadAttributeValues(charId);
             var hash = JSON.stringify(attributes);
+            var previous = prevAttributes[charId];
             
-            if(attributes['enabled'] && (prevAttributes[charId] === undefined || prevAttributes[charId] === null || prevAttributes[charId] !== hash))
+            if(attributes['enabled'] && (previous === undefined || previous === null || prevAttributes[charId] !== hash))
             {
-                attributesChanged(charId, attributes);
+                var previousParsed = previous === undefined || previous === null ? null : JSON.parse(previous);
+                
+                attributesChanged(charId, attributes, previousParsed);
                 prevAttributes[charId] = hash;
             }
         });
