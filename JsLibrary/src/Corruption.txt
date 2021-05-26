@@ -1,0 +1,1 @@
+1. set attribute "corruption-enabled" to true on players that use corruption;
