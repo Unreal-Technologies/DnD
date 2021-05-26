@@ -138,6 +138,61 @@ var Corruption = Corruption || (function () {
         };
     },
 
+    weaponInfo = function(charId)
+    {
+        var weapons = [];
+        var objects = findObjs({
+            _type: 'attribute',
+            _characterid: charId
+        });
+        _.each(objects, function(attribute)
+        {
+            if((new RegExp('^repeating_inventory_.+_itemattackid$')).test(attribute.get('name')))
+            {
+                var weapData = {
+                    'id': attribute.get('current'),
+                    'name': null,
+                    'range': null,
+                    'corruption': null,
+                };
+                _.each(objects, function(subAttr)
+                {
+                    var attrName = subAttr.get('name');
+                    if((new RegExp('^repeating_attack_'+weapData['id']+'_.*$')).test(attrName))
+                    {
+                        if((new RegExp('.*_atkname$')).test(attrName))
+                        {
+                            weapData['name'] = subAttr.get('current');
+                        }
+                        else if((new RegExp('.*_atkrange$')).test(attrName))
+                        {
+                            weapData['range'] = parseInt(subAttr.get('current'));
+                        }
+                        else if((new RegExp('.*_corruption$')).test(attrName))
+                        {
+                            weapData['corruption'] = subAttr.get('current').toString().toLocaleLowerCase() === 'true';
+                        }
+                    }
+                });
+
+                if(weapData['corruption'] === null)
+                {
+                    var key = 'repeating_attack_'+weapData['id']+'_corruption';
+                    log("Attribute " + key + " not found for character ID " + charId + " Creating.");
+                    createObj("attribute", {
+                        name: key,
+                        current: false,
+                        characterid: charId
+                    });
+                    weapData['corruption'] = false;
+                }
+                weapons[weapons.length] = weapData;
+            }
+        });
+           
+        return weapons;
+    },
+
     attributesChanged = function(charId, attributes, previous)
     {
         var hpDirection = attributeDirection(attributes, previous, 'hp', 'current');
@@ -148,6 +203,8 @@ var Corruption = Corruption || (function () {
         var corruption = attributes['corruption']['current'];
         
         var passives = levelSpecificPassives(level);
+        var weapons = weaponInfo(charId);
+        log(weapons);
         
         if(passives['tier'] !== 0 && corruptionDirection === 'U')
         {
@@ -202,6 +259,11 @@ var Corruption = Corruption || (function () {
             {
                 characters[characters.length] = char.id;
             }
+        });
+        
+        on('click:macro', function(m)
+        {
+            log(m);
         });
         
         progressionLoop();
