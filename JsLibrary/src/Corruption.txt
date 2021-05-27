@@ -1,4 +1,4 @@
 1. set attribute "corruption-enabled" to true on players that use corruption;
 
-Command !setCorruption [character-name],(true|false)
+Command: !setCorruption [character-name],(true|false)
 Command: !setWeaponCorruption [character-name],[weapon-name],(true|false)
