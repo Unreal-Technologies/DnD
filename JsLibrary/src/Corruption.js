@@ -23,6 +23,7 @@ var Corruption = Corruption || (function () {
     
     characters = [],
     prevAttributes = [],
+    charCorruptionRoll = null,
 
     addAttributes = function(characterID, attributes) {
         for (var key in attributes) {
@@ -198,13 +199,31 @@ var Corruption = Corruption || (function () {
         
         var level = attributes['level'];
         var hp = attributes['hp']['current'];
-        var corruption = attributes['corruption']['current'];
-        
+
         var passives = levelSpecificPassives(level);
 
         if(passives['tier'] !== 0 && corruptionDirection === 'U')
         {
-           log(passives);
+           var diffVal = parseInt(attributes['corruption']['max'] / 4);
+           var prev = previous['corruption']['current'];
+           var cur = attributes['corruption']['current'];
+
+           var val1 = diffVal;
+           var val2 = diffVal * 2;
+           var val3 = diffVal * 3;
+           var val4 = attributes['corruption']['max'];
+           
+           if(prev < val4 && cur >= val4)
+           {
+               log('CORRUPTED');
+               sendChat('Corruption', 'CORRUPTED', null, {noarchive:true} );
+           }
+           else if((prev < val1 && cur >= val1) || (prev < val2 && cur >= val2) || (prev < val3 && cur >= val3))
+           {
+               log('CORRUPTION EVENT');
+               sendChat('Corruption', 'CORRUPTION EVENT', null, {noarchive:true} );
+           }
+           
         }
     },
 
@@ -267,14 +286,43 @@ var Corruption = Corruption || (function () {
 
                 if(attack['corruption'])
                 {
-                    log('CORRUPTION ROLL');
-                    log(attack);
-                }
-                else
-                {
-                    log(attack);
+                    var levelAttrib = findObjs({
+                        _type: "attribute", 
+                        name: 'level', 
+                        _characterid: charId
+                    })[0];
+                    var passives = levelSpecificPassives(levelAttrib.get('current'));
+                    if(passives['dice'] !== null)
+                    {
+                        charCorruptionRoll = charId;
+                        sendChat('Corruption', '/roll '+passives['dice'], null, {noarchive: true, use3d: true} );
+                    }
                 }
             }
+        }
+    },
+
+    chatCommandCorruptionRoll = function(msg)
+    {
+        if(charCorruptionRoll !== null && msg.type === 'rollresult' && msg.who === 'Corruption')
+        {
+            var charId = charCorruptionRoll;
+            charCorruptionRoll = null;
+            
+            var corruptionAttrib = findObjs({
+                _type: "attribute", 
+                name: 'corruption', 
+                _characterid: charId
+            })[0];
+            var diceRoll = parseInt(JSON.parse(msg.content.toString()).total);
+            
+            var character = findObjs(
+            {
+                _type: "character",
+                _id: charId
+            })[0];
+            corruptionAttrib.set('current', parseInt(corruptionAttrib.get('current')) + diceRoll);
+            sendChat('Corruption', 'Character "'+character.get('name')+'" gains '+diceRoll+' corruption points.', null, {noarchive:true} );
         }
     },
 
@@ -395,6 +443,7 @@ var Corruption = Corruption || (function () {
             chatCommandAttackApplyCorruption(msg);
             chatCommandEnableCorruption(msg);
             chatCommandWeaponEnableCorruption(msg);
+            chatCommandCorruptionRoll(msg);
         });
         
         progressionLoop();
