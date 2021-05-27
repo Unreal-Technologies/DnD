@@ -45,6 +45,12 @@ var Corruption = Corruption || (function () {
         }
     },
 
+    sendActiveChat = function(message)
+    {
+        log(message);
+        sendChat('Corruption', message, null, {noarchive:true} );
+    },
+
     loadAttributeValues = function(charId)
     {
         var corruptionAttribute = findObjs({
@@ -215,13 +221,11 @@ var Corruption = Corruption || (function () {
            
            if(prev < val4 && cur >= val4)
            {
-               log('CORRUPTED');
-               sendChat('Corruption', 'CORRUPTED', null, {noarchive:true} );
+               sendActiveChat('CORRUPTED');
            }
            else if((prev < val1 && cur >= val1) || (prev < val2 && cur >= val2) || (prev < val3 && cur >= val3))
            {
-               log('CORRUPTION EVENT');
-               sendChat('Corruption', 'CORRUPTION EVENT', null, {noarchive:true} );
+               sendActiveChat('CORRUPTION EVENT');
            }
            
         }
@@ -295,7 +299,7 @@ var Corruption = Corruption || (function () {
                     if(passives['dice'] !== null)
                     {
                         charCorruptionRoll = charId;
-                        sendChat('Corruption', '/roll '+passives['dice'], null, {noarchive: true, use3d: true} );
+                        sendActiveChat('/roll '+passives['dice']);
                     }
                 }
             }
@@ -322,7 +326,7 @@ var Corruption = Corruption || (function () {
                 _id: charId
             })[0];
             corruptionAttrib.set('current', parseInt(corruptionAttrib.get('current')) + diceRoll);
-            sendChat('Corruption', 'Character "'+character.get('name')+'" gains '+diceRoll+' corruption points.', null, {noarchive:true} );
+            sendActiveChat('Character "'+character.get('name')+'" gains '+diceRoll+' corruption points.');
         }
     },
 
@@ -356,7 +360,7 @@ var Corruption = Corruption || (function () {
                 });
                 if(weapon === null)
                 {
-                    sendChat('Corruption', 'Weapon "'+weap_name+'" on character "'+char_name+'" is not found.', null, {noarchive:true} );
+                    sendActiveChat('Weapon "'+weap_name+'" on character "'+char_name+'" is not found.');
                 }
                 else
                 {
@@ -367,12 +371,12 @@ var Corruption = Corruption || (function () {
                     })[0];
                     
                     attrib.set('current', state ? 'true' : 'false');
-                    sendChat('Corruption', 'Weapon "'+weap_name+'" on character "'+char_name+'" has corruption '+(state ? 'enabled' : 'disabled')+'.', null, {noarchive:true} );
+                    sendActiveChat('Weapon "'+weap_name+'" on character "'+char_name+'" has corruption '+(state ? 'enabled' : 'disabled')+'.');
                 }
             }
             else
             {
-                sendChat('Corruption', 'Character "'+char_name+'" is not found.', null, {noarchive:true} );
+                sendActiveChat('Character "'+char_name+'" is not found.');
             }
         }
     },
@@ -403,11 +407,11 @@ var Corruption = Corruption || (function () {
                 })[0];
 
                 attrib.set('current', state ? 'true' : 'false');
-                sendChat('Corruption', 'Character "'+name+'" has corruption '+(state ? 'enabled' : 'disabled')+'.', null, {noarchive:true} );
+                sendActiveChat('Character "'+name+'" has corruption '+(state ? 'enabled' : 'disabled')+'.');
             }
             else
             {
-                sendChat('Corruption', 'Character "'+name+'" is not found.', null, {noarchive:true} );
+                sendActiveChat('Character "'+name+'" is not found.');
             }
         }
     },
