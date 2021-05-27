@@ -246,6 +246,123 @@ var Corruption = Corruption || (function () {
         
         return last;
     },
+    
+    chatCommandAttackApplyCorruption = function(msg)
+    {
+        if(msg.rolltemplate === 'atk')
+        {
+            var left = 'repeating_attack_';
+            var right = '_attack_dmg';
+            var regex1 = new RegExp(left + '.*' + right);
+            var regex2 = new RegExp('~.*|'+left);
+            if(regex1.test(msg.content) && regex2.test(msg.content))
+            {
+                var result1 = regex1.exec(msg.content)[0].toString();
+                var attackId = result1.substring(left.length, result1.length - right.length);
+
+                var result2 = regex2.exec(msg.content)[0].toString();
+                var charId = result2.substring(1).split('|')[0];
+
+                var attack = getLastAttack(charId, attackId);
+
+                if(attack['corruption'])
+                {
+                    log('CORRUPTION ROLL');
+                    log(attack);
+                }
+                else
+                {
+                    log(attack);
+                }
+            }
+        }
+    },
+
+    chatCommandWeaponEnableCorruption = function(msg)
+    {
+        var content = msg.content.toString();
+        if((new RegExp('!setWeaponCorruption [A-Za-z ]+,[A-za-z ]+,(true|false)')).test(content))
+        {
+            var values = content.substring(20).trim().split(',');
+            var char_name = values[0];
+            var weap_name = values[1];
+            var state = values[2] === 'true';
+            
+            var result = findObjs(
+            {
+                _type: "character",
+                name: char_name
+            });
+            
+            if(result.length !== 0)
+            {
+                var charId = result[0].get('_id');
+                var info = weaponInfo(charId);
+                var weapon = null;
+                _.each(info, function(weap)
+                {
+                    if(weap['name'] === weap_name)
+                    {
+                        weapon = weap;
+                    }
+                });
+                if(weapon === null)
+                {
+                    sendChat('Corruption', 'Weapon "'+weap_name+'" on character "'+char_name+'" is not found.', null, {noarchive:true} );
+                }
+                else
+                {
+                    var attrib = findObjs({
+                        _type: "attribute", 
+                        name: 'repeating_attack_'+weapon['id']+'_corruption', 
+                        _characterid: charId
+                    })[0];
+                    
+                    attrib.set('current', state ? 'true' : 'false');
+                    sendChat('Corruption', 'Weapon "'+weap_name+'" on character "'+char_name+'" has corruption '+(state ? 'enabled' : 'disabled')+'.', null, {noarchive:true} );
+                }
+            }
+            else
+            {
+                sendChat('Corruption', 'Character "'+char_name+'" is not found.', null, {noarchive:true} );
+            }
+        }
+    },
+
+    chatCommandEnableCorruption = function(msg)
+    {
+        var content = msg.content.toString();
+        if((new RegExp('!setCorruption [A-Za-z ]+,(true|false)')).test(content))
+        {
+            var values = content.substring(14).trim().split(',');
+            var name = values[0];
+            var state = values[1] === 'true';
+
+            var result = findObjs(
+            {
+                _type: "character",
+                name: name
+            });
+
+            if(result.length !== 0)
+            {
+                var character = result[0];
+
+                var attrib = findObjs({
+                    _type: "attribute", 
+                    name: 'corruption-enabled', 
+                    _characterid: character.get('_id')
+                })[0];
+
+                attrib.set('current', state ? 'true' : 'false');
+                sendChat('Corruption', 'Character "'+name+'" has corruption '+(state ? 'enabled' : 'disabled')+'.', null, {noarchive:true} );
+            }
+            else
+            {
+                sendChat('Corruption', 'Character "'+name+'" is not found.', null, {noarchive:true} );
+            }
+        }
+    },
 
     registerEventHandlers = function() {    
         var allCharacters = findObjs(
@@ -275,67 +392,9 @@ var Corruption = Corruption || (function () {
         
         on("chat:message", function(msg)
         {
-            if(msg.rolltemplate === 'atk')
-            {
-                var left = 'repeating_attack_';
-                var right = '_attack_dmg';
-                var regex1 = new RegExp(left + '.*' + right);
-                var regex2 = new RegExp('~.*|'+left);
-                if(regex1.test(msg.content) && regex2.test(msg.content))
-                {
-                    var result1 = regex1.exec(msg.content)[0].toString();
-                    var attackId = result1.substring(left.length, result1.length - right.length);
-                    
-                    var result2 = regex2.exec(msg.content)[0].toString();
-                    var charId = result2.substring(1).split('|')[0];
-                    
-                    var attack = getLastAttack(charId, attackId);
-                    
-                    if(attack['corruption'])
-                    {
-                        log('CORRUPTION ROLL');
-                        log(attack);
-                    }
-                    else
-                    {
-                        log(attack);
-                    }
-                }
-            }
-            else
-            {
-                var content = msg.content.toString();
-                if((new RegExp('!setCorruption [A-Za-z ]+,(true|false)')).test(content))
-                {
-                    var values = content.substring(14).trim().split(',');
-                    var name = values[0];
-                    var state = values[1] === 'true';
-                    
-                    var result = findObjs(
-                    {
-                        _type: "character",
-                        name: name
-                    });
-                    
-                    if(result.length !== 0)
-                    {
-                        var character = result[0];
-                        
-                        var attrib = findObjs({
-                            _type: "attribute", 
-                            name: 'corruption-enabled', 
-                            _characterid: character.get('_id')
-                        })[0];
-                        
-                        attrib.set('current', state ? 'true' : 'false');
-                        sendChat('Corruption', 'Character "'+name+'" has corruption '+(state ? 'enabled' : 'disabled')+'.', null, {noarchive:true} );
-                    }
-                    else
-                    {
-                        sendChat('Corruption', 'Character "'+name+'" is not found.', null, {noarchive:true} );
-                    }
-                }
-            }
+            chatCommandAttackApplyCorruption(msg);
+            chatCommandEnableCorruption(msg);
+            chatCommandWeaponEnableCorruption(msg);
         });
         
         progressionLoop();
