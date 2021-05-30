@@ -9,4 +9,4 @@ var Corruption =
     }
 };
 
-CharacterInfo.RegisterPreloadCharacters(function(charId){ Corruption.PreloadCharacter(charId); });
+CharacterInfo.RegisterOnPreloadCharacters(function(charId){ Corruption.PreloadCharacter(charId); });

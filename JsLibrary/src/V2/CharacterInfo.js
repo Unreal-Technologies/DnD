@@ -31,7 +31,7 @@ var CharacterInfo =
         this._PreloadCharacters(char);
     },
     
-    RegisterPreloadCharacters: function(callback)
+    RegisterOnPreloadCharacters: function(callback)
     {
         this.preloadCharactersEvents[this.preloadCharactersEvents.length] = callback;
     },
@@ -39,9 +39,26 @@ var CharacterInfo =
     _LoadCharacterData: function(char)
     {
         var id = char.id;
+        var tokenObject = null;
+
         this.data[id] = {
-            'char': char
+            'char': char,
+            'token': tokenObject
         };
+        
+        var self = this;
+        char.get('defaulttoken', function(token)
+        {
+            self.data[id]['token'] = JSON.parse(token);
+            if(self.data[id]['token'] !== null)
+            {
+                self.data[id]['token'] = findObjs(
+                {
+                    _type: 'graphic',
+                    represents: char.id
+                })[0];
+            }
+        });
     },
     
     _PreloadCharacters: function(char)
@@ -53,12 +70,16 @@ var CharacterInfo =
             this._LoadCharacterData(char);
         }
         
-        _.each(this.preloadCharactersEvents, function(event)
+        var self = this;
+        setTimeout(function()
         {
-            event(char.id);
-        });
+            _.each(self.preloadCharactersEvents, function(event)
+            {
+                event(char.id);
+            });
+        }, 100);
     }
 };
 
 EventHandler.RegisterOnReady(function(){ CharacterInfo.Ready(); });
-EventHandler.RegisterAddCharacter(function(char){ CharacterInfo.AddCharacter(char); });
+EventHandler.RegisterOnAddCharacter(function(char){ CharacterInfo.AddCharacter(char); });

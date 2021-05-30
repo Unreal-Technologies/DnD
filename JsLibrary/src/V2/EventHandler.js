@@ -2,8 +2,14 @@ var EventHandler =
 {
     readyEvents: [],
     addCharacterEvents: [],
+    chatMessageEvents: [],
     
-    RegisterAddCharacter: function(callback)
+    RegisterOnCharMessage: function(callback)
+    {
+        this.chatMessageEvents[this.chatMessageEvents.length] = callback;
+    },
+    
+    RegisterOnAddCharacter: function(callback)
     {
         this.addCharacterEvents[this.addCharacterEvents.length] = callback;
     },
@@ -26,6 +32,15 @@ var EventHandler =
             _.each(acE, function(event)
             {
                 event(char);
+            });
+        });
+        
+        var cmE = this.chatMessageEvents;
+        on("chat:message", function(msg)
+        {
+            _.each(cmE, function(event)
+            {
+               event(msg); 
             });
         });
     }
