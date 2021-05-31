@@ -59,28 +59,34 @@ var CharacterInfo =
                 var oldAttributes = data['attributes'];
 
                 var changed = [];
-                var hasChanges = false;
                 for(const k in oldAttributes)
                 {
                     if(!newAttributes.hasOwnProperty(k))
                     {
-                        log('CALL 1');
                         _.each(self.attributeUpdateEvents, function(event)
                         {
-                            event(charId, oldAttributes[k], null);
+                            event(charId, null, self.data[charId]['attributes'][k]['current']);
                         });
                         changed[changed.length] = k;
-                        hasChanges = true;
+                        self.data[charId]['attributes'][k]['current'] = JSON.stringify(newAttributes[k]['object']);
+                        self.data[charId]['attributes'][k]['previous'] = null;
+                        
+                        continue;
                     }
-                    else if(oldAttributes[k].get('current') !== newAttributes[k].get('current') || oldAttributes[k].get('max') !== newAttributes[k].get('max'))
+                    
+                    var _new = JSON.stringify(newAttributes[k]['object']);
+                    var _old = oldAttributes[k]['current'];
+                    
+                    if(_old !== _new)
                     {
-                        log('CALL 2');
                         _.each(self.attributeUpdateEvents, function(event)
                         {
-                            event(charId, oldAttributes[k], newAttributes[k]);
+                            event(charId, _old, _new);
                         });
                         changed[changed.length] = k;
-                        hasChanges = true;
+                        self.data[charId]['attributes'][k]['current'] = _new;
+                        self.data[charId]['attributes'][k]['previous'] = _old;
+                        continue;
                     }
                 }
                 for(const k in newAttributes)
@@ -90,27 +96,34 @@ var CharacterInfo =
                     {
                         continue;
                     }
-                    else if(!oldAttributes.hasOwnProperty(k))
+                    
+                    if(!oldAttributes.hasOwnProperty(k))
                     {
                         _.each(self.attributeUpdateEvents, function(event)
                         {
-                            event(charId, null, newAttributes[k]);
+                            event(charId, self.data[charId]['attributes'][k]['previous'], null);
                         });
-                        hasChanges = true;
+                        
+                        self.data[charId]['attributes'][k]['current'] = null;
+                        self.data[charId]['attributes'][k]['previous'] = JSON.stringify(newAttributes[k]['object']);
+                        
+                        continue;
                     }
-                    else if(oldAttributes[k].get('current') !== newAttributes[k].get('current') || oldAttributes[k].get('max') !== newAttributes[k].get('max'))
+                    
+                    var _new = JSON.stringify(newAttributes[k]['object']);
+                    var _old = oldAttributes[k]['current'];
+                    
+                    if(_old !== _new)
                     {
                         _.each(self.attributeUpdateEvents, function(event)
                         {
-                            event(charId, oldAttributes[k], newAttributes[k]);
+                            event(charId, _old, _new);
                         });
-                        hasChanges = true;
+                        self.data[charId]['attributes'][k]['current'] = _new;
+                        self.data[charId]['attributes'][k]['previous'] = _old;
+                        
+                        continue;
                     }
-                }
-                
-                if(hasChanges)
-                {
-                    log(hasChanges);
                 }
             }
         });
@@ -137,7 +150,11 @@ var CharacterInfo =
             }
             else
             {
-                attributes[name] = attribute;
+                attributes[name] = {
+                    'object': attribute,
+                    'current': JSON.stringify(attribute),
+                    'previous': JSON.stringify(attribute)
+                };
             }
         });
         
