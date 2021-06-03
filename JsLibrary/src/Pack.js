@@ -1,3 +1,51 @@
+var EventHandler =
+{
+    readyEvents: [],
+    addCharacterEvents: [],
+    chatMessageEvents: [],
+    
+    Register_OnCharMessage: function(callback)
+    {
+        this.chatMessageEvents[this.chatMessageEvents.length] = callback;
+    },
+    
+    Register_OnAddCharacter: function(callback)
+    {
+        this.addCharacterEvents[this.addCharacterEvents.length] = callback;
+    },
+    
+    Register_OnReady: function(callback)
+    {
+        this.readyEvents[this.readyEvents.length] = callback;
+    },
+    
+    _OnReady: function()
+    {
+        _.each(this.readyEvents, function(event)
+        {
+            event();
+        });
+        
+        var acE = this.addCharacterEvents;
+        on("add:character", function(char)
+        {
+            _.each(acE, function(event)
+            {
+                event(char);
+            });
+        });
+        
+        var cmE = this.chatMessageEvents;
+        on("chat:message", function(msg)
+        {
+            _.each(cmE, function(event)
+            {
+               event(msg); 
+            });
+        });
+    }
+};
+
 var CharacterInfo =
 {
     preloadCharactersEvents: [],
@@ -14,7 +62,11 @@ var CharacterInfo =
             _type: "character"
         }), function(char) 
         {
-            self._PreloadCharacters(char);
+            var idx = self.characters.indexOf(char.id);
+            if(idx === -1)
+            {
+                self._PreloadCharacters(char);
+            }
         });
         
         this._CharacterChecker();
@@ -32,7 +84,14 @@ var CharacterInfo =
     
     Get_Attribute: function(charId, name)
     {
-        return this.objectdata[charId]['attribute'][name];
+        try
+        {
+            return this.objectdata[charId]['attributes'][name];
+        }
+        catch(ex)
+        {
+            return null;
+        }
     },
     
     Get_Equipment: function(charId)
@@ -238,15 +297,182 @@ var CharacterInfo =
         }
         
         var self = this;
-        setTimeout(function()
+        _.each(this.preloadCharactersEvents, function(event)
         {
-            _.each(self.preloadCharactersEvents, function(event)
-            {
-                event(char.id);
-            });
-        }, 500);
+            event(char.id);
+        });
     }
 };
 
+var Chat = 
+{
+    apiCommandEvents: [],
+    
+    Send_Whisper_Character(fromId, toId, text)
+    {
+        this.Send_Whisper("character|"+fromId, toId, text);
+    },
+    
+    Send_Whisper(as, toId, text)
+    {
+        var char = CharacterInfo.Get_Character(toId);
+        sendChat(as, "/w \""+char.get('name')+"\" "+text, null, {noarchive:true} );
+    },
+    
+    Send_GM_Character: function(charId, text)
+    {
+        this.Send_GM("character|"+charId, text);
+    },
+    
+    Send_GM: function(as, text)
+    {
+        sendChat(as, "/w GM "+text, null, {noarchive:true} );
+    },
+
+    Send_Global_Character: function(charId, text)
+    {
+        this.Send_Global("character|"+charId, text);
+    },
+
+    Send_Global: function(as, text)
+    {
+        sendChat(as, text, null, {noarchive:true} );
+    },
+    
+    _Parse_Api: function(message)
+    {
+        var content = message['content'];
+        _.each(this.apiCommandEvents, function(info)
+        {
+            var regex = new RegExp(info['expression']);
+            if(regex.test(content))
+            {
+                var key = regex.exec(content)[0].toString();
+                var command = content.substr(key.length, content.length - key.length).trim();
+                info['callback'](command);
+            }
+        });
+    },
+    
+    Register_Api_Command(expression, callback)
+    {
+        this.apiCommandEvents[this.apiCommandEvents.length] = {
+            'expression': expression,
+            'callback': callback
+        };
+    },
+    
+    _Parse: function(message)
+    {
+        var type = message['type'];
+        if(type === 'error')
+        {
+            return;
+        }
+        
+        switch(type)
+        {
+            case 'api':
+                this._Parse_Api(message);
+                break;
+            default:
+                log(type);
+        }
+    }
+};
+
+var Corruption = 
+{
+    playersWithCorruption: [],
+    
+    _PreloadCharacter: function(charId)
+    {
+        var corruption = CharacterInfo.Get_Attribute(charId, 'corruption');
+        if(corruption === undefined)
+        {
+            CharacterInfo.Create_Attribute(charId, 'corruption', 0, 0);
+        }
+        else if(parseInt(corruption['max']) !== 0 && this.playersWithCorruption.indexOf(charId) === -1)
+        {
+            this.playersWithCorruption[this.playersWithCorruption.length] = charId;
+        }
+    },
+    
+    _AttributesChanged: function(charId, name, old_, new_)
+    {
+        if(old_ === null || new_ === null || old_ === undefined || new_ === undefined)
+        {
+            return;
+        }
+        
+        log(name);
+        log(old_);
+        log(new_);
+    },
+    
+    _EnableDisable_Corruption: function(command)
+    {
+        var components = command.split('|');
+        var name = components[0];
+        var state = components[1].toString().toLowerCase() === 'true';
+        var char = null;
+        _.each(CharacterInfo.Characters(), function(charId)
+        {
+            var cur = CharacterInfo.Get_Character(charId);
+            if(cur.get('name') === name)
+            {
+                char = cur;
+            }
+        });
+        if(char === null)
+        {
+            Chat.Send_GM('Corruption', 'Enable/Disable corruption: Can\'t find character "'+name+'"');
+            return;
+        }
+        
+        var charId = char.get('id');
+        var attribute = CharacterInfo.Get_Attribute(charId, 'corruption');
+        attribute.set('max', state ? 100 : 0);
+        if(state)
+        {
+            this.playersWithCorruption[this.playersWithCorruption.length] = charId;
+        }
+        else
+        {
+            var buffer = [];
+            _.each(this.playersWithCorruption, function(id)
+            {
+                if(id !== charId)
+                {
+                    buffer[buffer.length] = id;
+                }
+            });
+            this.playersWithCorruption = buffer;
+        }
+
+        Chat.Send_GM('Corruption', 'Enable/Disable corruption: '+(state ? 'Enabled' : 'Disabled')+' corruption on "'+name+'"');
+    }
+};
+
+CharacterInfo.Register_OnPreloadCharacters(function(charId){ Corruption._PreloadCharacter(charId); });
+CharacterInfo.Register_OnAtributeUpdate(function(charId, name, old_, new_) { Corruption._AttributesChanged(charId, name, old_, new_); });
+Chat.Register_Api_Command('^\!enable-corruption', function(command) { Corruption._EnableDisable_Corruption(command); });
+EventHandler.Register_OnCharMessage(function(message) { Chat._Parse(message); });
 EventHandler.Register_OnReady(function(){ CharacterInfo._Ready(); });
 EventHandler.Register_OnAddCharacter(function(char){ CharacterInfo._AddCharacter(char); });
+
+var EventHandlerInitiator = EventHandlerInitiator || (function () {
+    registerEventHandlers = function() { 
+        EventHandler._OnReady();
+    };
+    
+    return {
+        Register_EventHandlers: registerEventHandlers
+    }; 
+})();
+
+on("ready", function() {
+    'use strict';
+    
+    EventHandlerInitiator.Register_EventHandlers();    
+});
