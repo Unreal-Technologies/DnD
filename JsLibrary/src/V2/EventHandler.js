@@ -4,22 +4,22 @@ var EventHandler =
     addCharacterEvents: [],
     chatMessageEvents: [],
     
-    RegisterOnCharMessage: function(callback)
+    Register_OnCharMessage: function(callback)
     {
         this.chatMessageEvents[this.chatMessageEvents.length] = callback;
     },
     
-    RegisterOnAddCharacter: function(callback)
+    Register_OnAddCharacter: function(callback)
     {
         this.addCharacterEvents[this.addCharacterEvents.length] = callback;
     },
     
-    RegisterOnReady: function(callback)
+    Register_OnReady: function(callback)
     {
         this.readyEvents[this.readyEvents.length] = callback;
     },
     
-    OnReady: function()
+    _OnReady: function()
     {
         _.each(this.readyEvents, function(event)
         {
@@ -48,16 +48,16 @@ var EventHandler =
 
 var EventHandlerInitiator = EventHandlerInitiator || (function () {
     registerEventHandlers = function() { 
-        EventHandler.OnReady();
+        EventHandler._OnReady();
     };
     
     return {
-        RegisterEventHandlers: registerEventHandlers
+        Register_EventHandlers: registerEventHandlers
     }; 
 })();
 
 on("ready", function() {
     'use strict';
     
-    EventHandlerInitiator.RegisterEventHandlers();    
+    EventHandlerInitiator.Register_EventHandlers();    
 });

@@ -3,9 +3,10 @@ var CharacterInfo =
     preloadCharactersEvents: [],
     attributeUpdateEvents: [],
     characters: [],
-    data: [],
+    attributes: [],
+    objectdata: [],
     
-    Ready: function()
+    _Ready: function()
     {
         var self = this;
         _.each(findObjs(
@@ -19,9 +20,24 @@ var CharacterInfo =
         this._CharacterChecker();
     },
     
-    Data: function(characterId)
+    Get_Character: function(charId)
     {
-        return this.data[characterId];
+        return this.objectdata[charId]['char'];
+    },
+    
+    Get_Token: function(charId)
+    {
+        return this.objectdata[charId]['token'];
+    },
+    
+    Get_Attribute: function(charId, name)
+    {
+        return this.objectdata[charId]['attribute'][name];
+    },
+    
+    Get_Equipment: function(charId)
+    {
+        return this.objectdata[charId]['equipment'];
     },
     
     Characters: function()
@@ -29,17 +45,36 @@ var CharacterInfo =
         return this.characters;
     },
     
-    AddCharacter: function(char)
+    _AddCharacter: function(char)
     {
         this._PreloadCharacters(char);
     },
     
-    RegisterOnAtributeUpdate: function(callback)
+    _GetAttributes(charId)
+    {
+        if(!this.objectdata.hasOwnProperty(charId))
+        {
+            return null;
+        }
+        var attributes = this.objectdata[charId]['attributes'];
+        var buffer = {};
+        for(const k in attributes)
+        {
+            buffer[k] = {
+                'current': attributes[k].get('current'),
+                'max': attributes[k].get('max')
+            };
+        }
+        
+        return buffer;
+    },
+    
+    Register_OnAtributeUpdate: function(callback)
     {
         this.attributeUpdateEvents[this.attributeUpdateEvents.length] = callback;
     },
     
-    RegisterOnPreloadCharacters: function(callback)
+    Register_OnPreloadCharacters: function(callback)
     {
         this.preloadCharactersEvents[this.preloadCharactersEvents.length] = callback;
     },
@@ -49,80 +84,41 @@ var CharacterInfo =
         var self = this;
         _.each(this.characters, function(charId)
         {
-            if(self.data.hasOwnProperty(charId))
+            if(self.attributes.hasOwnProperty(charId))
             {
-                var data = self.data[charId];
-                var char = data['char'];
-                
-                var attributeInfo = self._LoadCharacterAttributes(char);
-                var newAttributes = attributeInfo['attributes'];
-                var oldAttributes = data['attributes'];
+                var old_attributes = self.attributes[charId];
+                var new_attributes = self._GetAttributes(charId);
 
-                var changed = [];
-                for(const k in oldAttributes)
+                var isEqual = JSON.stringify(old_attributes) === JSON.stringify(new_attributes);
+                if(!isEqual)
                 {
-                    if(!newAttributes.hasOwnProperty(k))
+                    self.attributes[charId] = new_attributes;
+                    for(const k in old_attributes)
                     {
-                        _.each(self.attributeUpdateEvents, function(event)
+                        if(!new_attributes.hasOwnProperty(k)) //REMOVED
                         {
-                            event(charId, null, self.data[charId]['attributes'][k]['current']);
-                        });
-                        changed[changed.length] = k;
-                        self.data[charId]['attributes'][k]['current'] = JSON.stringify(newAttributes[k]['object']);
-                        self.data[charId]['attributes'][k]['previous'] = null;
-                        
-                        continue;
-                    }
-                    
-                    var _new = JSON.stringify(newAttributes[k]['object']);
-                    var _old = oldAttributes[k]['current'];
-                    
-                    if(_old !== _new)
-                    {
-                        _.each(self.attributeUpdateEvents, function(event)
+                            _.each(self.attributeUpdateEvents, function(event)
+                            {
+                                event(charId, k, old_attributes[k], null);
+                            });
+                        }
+                        if(JSON.stringify(old_attributes[k]) !== JSON.stringify(new_attributes[k]))
                         {
-                            event(charId, _old, _new);
-                        });
-                        changed[changed.length] = k;
-                        self.data[charId]['attributes'][k]['current'] = _new;
-                        self.data[charId]['attributes'][k]['previous'] = _old;
-                        continue;
+                            _.each(self.attributeUpdateEvents, function(event)
+                            {
+                                event(charId, k, old_attributes[k], new_attributes[k]);
+                            });
+                        }
                     }
-                }
-                for(const k in newAttributes)
-                {
-                    var idx = changed.indexOf(k);
-                    if(idx !== -1)
+                    for(const k in new_attributes)
                     {
-                        continue;
-                    }
-                    
-                    if(!oldAttributes.hasOwnProperty(k))
-                    {
-                        _.each(self.attributeUpdateEvents, function(event)
+                        if(!old_attributes.hasOwnProperty(k)) //Added
                         {
-                            event(charId, self.data[charId]['attributes'][k]['previous'], null);
-                        });
-                        
-                        self.data[charId]['attributes'][k]['current'] = null;
-                        self.data[charId]['attributes'][k]['previous'] = JSON.stringify(newAttributes[k]['object']);
-                        
-                        continue;
-                    }
-                    
-                    var _new = JSON.stringify(newAttributes[k]['object']);
-                    var _old = oldAttributes[k]['current'];
-                    
-                    if(_old !== _new)
-                    {
-                        _.each(self.attributeUpdateEvents, function(event)
-                        {
-                            event(charId, _old, _new);
-                        });
-                        self.data[charId]['attributes'][k]['current'] = _new;
-                        self.data[charId]['attributes'][k]['previous'] = _old;
-                        
-                        continue;
+                            _.each(self.attributeUpdateEvents, function(event)
+                            {
+                                event(charId, k, null, new_attributes[k]);
+                            });
+                        }
                     }
                 }
             }
@@ -132,6 +128,16 @@ var CharacterInfo =
         {
             self._CharacterChecker();
         }, 500);
+    },
+    
+    Create_Attribute: function(charId, name, current, max)
+    {
+        createObj("attribute", {
+            'name': name,
+            'current': current,
+            'max': max,
+            'characterid': charId
+        });
     },
     
     _LoadCharacterAttributes: function(char)
@@ -148,14 +154,8 @@ var CharacterInfo =
             {
                 equipment[name] = attribute;
             }
-            else
-            {
-                attributes[name] = {
-                    'object': attribute,
-                    'current': JSON.stringify(attribute),
-                    'previous': JSON.stringify(attribute)
-                };
-            }
+            
+            attributes[name] = attribute;
         });
         
         return {
@@ -204,26 +204,28 @@ var CharacterInfo =
         var tokenObject = null;
         var attributeInfo = this._LoadCharacterAttributes(char);
 
-        this.data[id] = {
+        this.objectdata[id] = {
             'char': char,
             'token': tokenObject,
             'attributes': attributeInfo['attributes'],
             'equipment': this._LoadCharacterEquipment(attributeInfo['equipment'])
         };
-        
+
         var self = this;
         char.get('defaulttoken', function(token)
         {
-            self.data[id]['token'] = JSON.parse(token);
-            if(self.data[id]['token'] !== null)
+            self.objectdata[id]['token'] = JSON.parse(token);
+            if(self.objectdata[id]['token'] !== null)
             {
-                self.data[id]['token'] = findObjs(
+                self.objectdata[id]['token'] = findObjs(
                 {
                     _type: 'graphic',
                     represents: char.id
                 })[0];
             }
         });
+        
+        this.attributes[id] = this._GetAttributes(id);
     },
     
     _PreloadCharacters: function(char)
@@ -242,9 +244,9 @@ var CharacterInfo =
             {
                 event(char.id);
             });
-        }, 100);
+        }, 500);
     }
 };
 
-EventHandler.RegisterOnReady(function(){ CharacterInfo.Ready(); });
-EventHandler.RegisterOnAddCharacter(function(char){ CharacterInfo.AddCharacter(char); });
+EventHandler.Register_OnReady(function(){ CharacterInfo._Ready(); });
+EventHandler.Register_OnAddCharacter(function(char){ CharacterInfo._AddCharacter(char); });
