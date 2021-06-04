@@ -547,6 +547,7 @@ var Corruption =
     auraIndex: {},
     tokenResize: {},
     isAdminCommand: false,
+    turnCounter: {},
 
     _PreloadCharacter: function(charId)
     {
@@ -1112,10 +1113,15 @@ var Corruption =
     
     _OnTurnChange: function()
     {
-        var current = Turn.Current();
         var self = this;
         _.each(this.charactersWithCorruption, function(charId)
         {
+            var state = CharacterInfo.Get_Attribute(charId, 'corruption-state').get('current').toString().toLowerCase() === 'true';
+            if(state) //Skip if curruption is active
+            {
+                return;
+            } 
+            
             var passive = self._LevelSpecificPassives(charId);
             var turns = passive['turns'];
             if(turns === null)
@@ -1123,11 +1129,19 @@ var Corruption =
                 return;
             }
             
+            if(!self.turnCounter.hasOwnProperty(charId))
+            {
+                self.turnCounter[charId] = 0;
+            }
+            var current = self.turnCounter[charId];
+            
             var mod = current % turns;
             if(mod === turns - 1)
             {
                 self._AttributesChanged_Corruption_Event(1, 2, charId);
             }
+            
+            self.turnCounter[charId]++;
         });
     },
     
@@ -1187,7 +1201,7 @@ var Turn = {
             callback();
         });
         this.turn++;
-        Chat.Send_GM('Turns', 'Ended turn '+this.turn);
+        Chat.Send_GM('Turns', 'Ended turn <b>'+this.turn+'</b>');
     }
 };
 
