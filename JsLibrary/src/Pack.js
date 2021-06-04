@@ -82,6 +82,11 @@ var CharacterInfo =
         return this.objectdata[charId]['token'];
     },
     
+    Get_Attributes: function(charId)
+    {
+        return this.objectdata[charId]['attributes'];
+    },
+    
     Get_Attribute: function(charId, name)
     {
         try
@@ -342,6 +347,7 @@ var Chat =
     _Parse_Api: function(message)
     {
         var content = message['content'];
+        var hasMatch = false;
         _.each(this.apiCommandEvents, function(info)
         {
             var regex = new RegExp(info['expression']);
@@ -350,8 +356,14 @@ var Chat =
                 var key = regex.exec(content)[0].toString();
                 var command = content.substr(key.length, content.length - key.length).trim();
                 info['callback'](command);
+                hasMatch = true;
             }
         });
+        if(!hasMatch)
+        {
+            log('_Parse_Api');
+            log(message);
+        }
     },
     
     Register_Api_Command(expression, callback)
@@ -396,6 +408,15 @@ var Corruption =
         {
             this.playersWithCorruption[this.playersWithCorruption.length] = charId;
         }
+        
+        _.each(CharacterInfo.Get_Equipment(charId), function(equipment)
+        {
+            var key = 'repeating_attack_'+equipment['id']+'_corruption';
+            if(CharacterInfo.Get_Attribute(charId, key) === null)
+            {
+                CharacterInfo.Create_Attribute(charId, key, 'false', null);
+            }
+        });
     },
     
     _AttributesChanged: function(charId, name, old_, new_)
@@ -405,9 +426,53 @@ var Corruption =
             return;
         }
         
-        log(name);
-        log(old_);
-        log(new_);
+        if(this.playersWithCorruption.indexOf(charId) !== -1)
+        {
+            log('_AttributesChanged');
+            log(name);
+            log(old_);
+            log(new_);
+        }
+    },
+    
+    _EnableDisable_Weapon_Corruption: function(command)
+    {
+        var components = command.split('|');
+        var char_name = components[0];
+        var weapon_name = components[1];
+        var state = components[2].toString().toLowerCase() === 'true';
+        var char = null;
+        _.each(CharacterInfo.Characters(), function(charId)
+        {
+            var cur = CharacterInfo.Get_Character(charId);
+            if(cur.get('name') === char_name)
+            {
+                char = cur;
+            }
+        });
+        if(char === null)
+        {
+            Chat.Send_GM('Corruption', 'Enable/Disable weapon corruption: Can\'t find character "'+char_name+'".');
+            return;
+        }
+        var weapon = null;
+        _.each(CharacterInfo.Get_Equipment(char.id), function(equipment)
+        {
+            if(equipment['name'] === weapon_name)
+            {
+                weapon = equipment;
+            }
+        });
+        if(weapon === null)
+        {
+            Chat.Send_GM('Corruption', 'Enable/Disable weapon corruption: Can\'t find weapon "'+weapon_name+'" on character "'+char_name+'".');
+            return;
+        }
+        var key = 'repeating_attack_'+weapon['id']+'_corruption';
+        var attribute = CharacterInfo.Get_Attribute(char.id, key);
+        attribute.set('current', state ? 'true' : 'false');
+        
+        Chat.Send_GM('Corruption', 'Enable/Disable weapon corruption: '+(state ? 'Enabled' : 'Disabled')+' corruption on weapon "'+weapon_name+'" of character "'+char_name+'".');
     },
     
     _EnableDisable_Corruption: function(command)
@@ -457,6 +522,7 @@ var Corruption =
 CharacterInfo.Register_OnPreloadCharacters(function(charId){ Corruption._PreloadCharacter(charId); });
 CharacterInfo.Register_OnAtributeUpdate(function(charId, name, old_, new_) { Corruption._AttributesChanged(charId, name, old_, new_); });
 Chat.Register_Api_Command('^\!enable-corruption', function(command) { Corruption._EnableDisable_Corruption(command); });
+Chat.Register_Api_Command('^\!enable-weapon-corruption', function(command) { Corruption._EnableDisable_Weapon_Corruption(command); });
 EventHandler.Register_OnCharMessage(function(message) { Chat._Parse(message); });
 EventHandler.Register_OnReady(function(){ CharacterInfo._Ready(); });
 EventHandler.Register_OnAddCharacter(function(char){ CharacterInfo._AddCharacter(char); });
