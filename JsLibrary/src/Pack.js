@@ -1110,6 +1110,27 @@ var Corruption =
         Chat.Send_GM('Corruption', 'Enable/Disable corruption: '+(state ? 'Enabled' : 'Disabled')+' corruption on "'+name+'"');
     },
     
+    _OnTurnChange: function()
+    {
+        var current = Turn.Current();
+        var self = this;
+        _.each(this.charactersWithCorruption, function(charId)
+        {
+            var passive = self._LevelSpecificPassives(charId);
+            var turns = passive['turns'];
+            if(turns === null)
+            {
+                return;
+            }
+            
+            var mod = current % turns;
+            if(mod === turns - 1)
+            {
+                self._AttributesChanged_Corruption_Event(1, 2, charId);
+            }
+        });
+    },
+    
     _Set_Corruption: function(command)
     {
         var components = command.split('|');
@@ -1145,12 +1166,39 @@ var Corruption =
     }
 };
 
+var Turn = {
+    turn: 0,
+    turnChangeEvents: [],
+    
+    Current: function()
+    {
+        return this.turn;
+    },
+    
+    Register_OnTurnChange: function(callback)
+    {
+        this.turnChangeEvents[this.turnChangeEvents.length] = callback;
+    },
+    
+    _NextTurn: function()
+    {
+        _.each(this.turnChangeEvents, function(callback)
+        {
+            callback();
+        });
+        this.turn++;
+        Chat.Send_GM('Turns', 'Ended turn '+this.turn);
+    }
+};
+
 CharacterInfo.Register_OnPreloadCharacters(function(charId){ Corruption._PreloadCharacter(charId); });
 CharacterInfo.Register_OnAtributeUpdate(function(charId, name, old_, new_) { Corruption._AttributesChanged(charId, name, old_, new_); });
 Chat.Register_Api_Command('^\!enable-corruption', function(command) { Corruption._EnableDisable_Corruption(command); });
 Chat.Register_Api_Command('^\!enable-weapon-corruption', function(command) { Corruption._EnableDisable_Weapon_Corruption(command); });
 Chat.Register_Api_Command('^\!set-corruption', function(command) { Corruption._Set_Corruption(command); });
+Chat.Register_Api_Command('^\!next-turn', function(command) { Turn._NextTurn(); });
 Chat.Register_Api_Rollresult(function(playerId, results, charId, weaponId) { Corruption._RollResult(playerId, results, charId, weaponId); });
+Turn.Register_OnTurnChange(function() { Corruption._OnTurnChange(); });
 EventHandler.Register_OnCharMessage(function(message) { Chat._Parse(message); });
 EventHandler.Register_OnReady(function(){ CharacterInfo._Ready(); });
 EventHandler.Register_OnAddCharacter(function(char){ CharacterInfo._AddCharacter(char); });
