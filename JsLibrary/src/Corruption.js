@@ -24,6 +24,7 @@ var Corruption = Corruption || (function () {
     characters = [],
     prevAttributes = [],
     charCorruptionRoll = null,
+    isCurrupted = [],
 
     addAttributes = function(characterID, attributes) {
         for (var key in attributes) {
@@ -174,10 +175,6 @@ var Corruption = Corruption || (function () {
                         {
                             weapData['range'] = parseInt(subAttr.get('current'));
                         }
-                        else if((new RegExp('.*_corruption$')).test(attrName))
-                        {
-                            weapData['corruption'] = subAttr.get('current').toString().toLocaleLowerCase() === 'true';
-                        }
                     }
                 });
 
@@ -221,14 +218,36 @@ var Corruption = Corruption || (function () {
            
            if(prev < val4 && cur >= val4)
            {
-               sendActiveChat('CORRUPTED');
+                corruptedEvent(charId, attributes);
            }
            else if((prev < val1 && cur >= val1) || (prev < val2 && cur >= val2) || (prev < val3 && cur >= val3))
            {
                sendActiveChat('CORRUPTION EVENT');
            }
-           
         }
+    },
+
+    corruptedEvent = function(charId, attributes)
+    {
+        var hpAttrib = findObjs({
+            _type: "attribute", 
+            name: 'hp', 
+            _characterid: charId
+        })[0];
+        
+        var character = findObjs(
+        {
+            _type: "character",
+            _id: charId
+        })[0];
+        
+        character.get('defaulttoken', function(info)
+        {
+            log(info);
+        });
+        
+        hpAttrib.set('current', parseInt(hpAttrib.get('max')));
+        isCurrupted[charId] = true;
     },
 
     progressionLoop = function()
@@ -430,6 +449,7 @@ var Corruption = Corruption || (function () {
             if(idx === -1)
             {
                 characters[characters.length] = char.id;
+                isCurrupted[char.id] = false;
             }
         });
         

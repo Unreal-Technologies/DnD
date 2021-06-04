@@ -1,0 +1,7 @@
+Config Character sheets:
+1. ROLL QUERIES: Advantage Toggle
+2. AUTO DAMAGE ROLL: Auto Roll Damage & Crits
+
+Commands:
+!enable-corruption [character-name]|(true|false)
+!enable-weapon-corruption [character-name]|[weapon-name]|(true|false)
