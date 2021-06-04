@@ -4,6 +4,18 @@ var EventHandler =
     addCharacterEvents: [],
     chatMessageEvents: [],
     
+    Timer: function(ms, callback)
+    {
+        if(callback())
+        {
+            var self = this;
+            setTimeout(function()
+            {
+                self.Timer(ms, callback);
+            }, ms);
+        }
+    },
+    
     Register_OnCharMessage: function(callback)
     {
         this.chatMessageEvents[this.chatMessageEvents.length] = callback;
@@ -532,7 +544,9 @@ var Corruption =
     charactersWithCorruption: [],
     corruptionRollFor: null,
     damageRollFor: null,
-    
+    auraIndex: {},
+    tokenResize: {},
+
     _PreloadCharacter: function(charId)
     {
         var corruption = CharacterInfo.Get_Attribute(charId, 'corruption');
@@ -540,9 +554,14 @@ var Corruption =
         {
             CharacterInfo.Create_Attribute(charId, 'corruption', 0, 0);
         }
-        else if(parseInt(corruption['max']) !== 0 && this.charactersWithCorruption.indexOf(charId) === -1)
+        else if(parseInt(corruption.get('max')) !== 0 && this.charactersWithCorruption.indexOf(charId) === -1)
         {
             this.charactersWithCorruption[this.charactersWithCorruption.length] = charId;
+        }
+        
+        if(CharacterInfo.Get_Attribute(charId, 'corruption-state') === undefined)
+        {
+            CharacterInfo.Create_Attribute(charId, 'corruption-state', false, 0);
         }
         
         _.each(CharacterInfo.Get_Equipment(charId), function(equipment)
@@ -559,8 +578,12 @@ var Corruption =
     {
         if(x === of)
         {
-            log('_AttributesChanged_Corruption_Event');
-            log('CORRUPTED!');
+            var state = CharacterInfo.Get_Attribute(charId, 'corruption-state');
+            state.set('current', 'true');
+            state.set('max', -1);
+            
+            var hp = CharacterInfo.Get_Attribute(charId, 'hp');
+            hp.set('current', hp.get('max'));
             return;
         }
         
@@ -606,6 +629,142 @@ var Corruption =
         }
     },
     
+    _AttributesChanged_Corruption_State_Aura: function(charId)
+    {
+        var token = CharacterInfo.Get_Token(charId);
+        token.set('aura1_color', '#ff9999');
+        token.set('aura1_square', false);
+        token.set('showplayers_aura1', true);
+        token.set('playersedit_aura1', false);
+
+        if(!this.auraIndex.hasOwnProperty(charId))
+        {
+            this.auraIndex[charId] = 'up';
+            token.set('aura1_radius', 0);
+        }
+        
+        var value = token.get('aura1_radius');
+        if(this.auraIndex[charId] === 'up')
+        {
+            value++;
+            token.set('aura1_radius', value);
+            if(value > 5)
+            {
+                this.auraIndex[charId] = 'down';
+                token.set('aura1_radius', 5);
+            }
+        }
+        else
+        {
+            value--;
+            token.set('aura1_radius', value);
+            if(value < 0)
+            {
+                this.auraIndex[charId] = 'up';
+                token.set('aura1_radius', 0);
+            }
+        }
+        
+        var state = CharacterInfo.Get_Attribute(charId, 'corruption-state');
+        if(state.get('current').toString().toLowerCase() === 'true')
+        {
+            return true;
+        }
+        
+        token.set('aura1_radius', '');
+        delete this.auraIndex[charId];
+        return false;
+    },
+    
+    _AttributesChanged_Corruption_State_Flash: function(charId)
+    {
+        var token = CharacterInfo.Get_Token(charId);
+        var color = token.get('tint_color') === 'transparent' ? '#ff0000' : 'transparent';
+        
+        token.set('tint_color', color);
+        
+        var state = CharacterInfo.Get_Attribute(charId, 'corruption-state');
+
+        if(state.get('current').toString().toLowerCase() === 'true')
+        {
+            return true;
+        }
+        token.set('tint_color', 'transparent');
+        
+        return false;
+    },
+    
+    _AttributesChanged_Corruption_State_True_Resize: function(charId)
+    {
+        var token = CharacterInfo.Get_Token(charId);
+        if(!this.tokenResize.hasOwnProperty(charId))
+        {
+            this.tokenResize[charId] = {
+                'width': parseInt(token.get('width')) * 2,
+                'height': parseInt(token.get('height')) * 2
+            };
+        }
+        
+        var width =  parseInt(token.get('width'));
+        var height = parseInt(token.get('height'));
+        
+        var state = CharacterInfo.Get_Attribute(charId, 'corruption-state');
+        if(state.get('current').toString().toLowerCase() === 'true' && (width < this.tokenResize[charId]['width'] || height < this.tokenResize[charId]['height']))
+        {
+            token.set('width', Math.min(width + 1, this.tokenResize[charId]['width']));
+            token.set('height', Math.min(height + 1, this.tokenResize[charId]['height']));
+            
+            return true;
+        }
+        delete this.tokenResize[charId];
+        
+        return false;
+    },
+    
+    _AttributesChanged_Corruption_State_False_Resize: function(charId)
+    {
+        var token = CharacterInfo.Get_Token(charId);
+        if(!this.tokenResize.hasOwnProperty(charId))
+        {
+            this.tokenResize[charId] = {
+                'width': parseInt(token.get('width')) / 2,
+                'height': parseInt(token.get('height')) / 2
+            };
+        }
+        
+        var width =  parseInt(token.get('width'));
+        var height = parseInt(token.get('height'));
+        
+        var state = CharacterInfo.Get_Attribute(charId, 'corruption-state');
+        if(state.get('current').toString().toLowerCase() === 'false' && (width > this.tokenResize[charId]['width'] || height > this.tokenResize[charId]['height']))
+        {
+            token.set('width', Math.min(width - 1, this.tokenResize[charId]['width']));
+            token.set('height', Math.min(height - 1, this.tokenResize[charId]['height']));
+            
+            return true;
+        }
+        delete this.tokenResize[charId];
+        
+        return false;
+    },
+    
+    _AttributesChanged_Corruption_State_True: function(charId)
+    {
+        var self = this;
+        EventHandler.Timer(250, function()
+        {
+            return self._AttributesChanged_Corruption_State_Flash(charId);
+        });
+        EventHandler.Timer(100, function()
+        {
+            return self._AttributesChanged_Corruption_State_Aura(charId);
+        });
+        EventHandler.Timer(50, function()
+        {
+            return self._AttributesChanged_Corruption_State_True_Resize(charId);
+        });
+    },
+    
     _AttributesChanged: function(charId, name, old_, new_)
     {
         if(old_ === null || new_ === null || old_ === undefined || new_ === undefined)
@@ -617,6 +776,20 @@ var Corruption =
         {
             switch(name)
             {
+                case 'corruption-state':
+                    if(new_['current'].toString().toLowerCase() === 'true')
+                    {
+                        this._AttributesChanged_Corruption_State_True(charId);
+                    }
+                    else
+                    {
+                        var self = this;
+                        EventHandler.Timer(10, function()
+                        {
+                            return self._AttributesChanged_Corruption_State_False_Resize(charId);
+                        });
+                    }
+                    break
                 case 'corruption':
                     if(this._GetDirection('current', old_, new_) === 'U')
                     {
