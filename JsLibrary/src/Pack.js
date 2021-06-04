@@ -546,6 +546,7 @@ var Corruption =
     damageRollFor: null,
     auraIndex: {},
     tokenResize: {},
+    isAdminCommand: false,
 
     _PreloadCharacter: function(charId)
     {
@@ -611,6 +612,12 @@ var Corruption =
     
     _AttributesChanged_Corruption_Up: function(charId, old_, new_)
     {
+        if(this.isAdminCommand)
+        {
+            this.isAdminCommand = false;
+            return;
+        }
+        
         var max = parseInt(CharacterInfo.Get_Attribute(charId, 'corruption').get('max'));
         var divider = 4;
         var parts = [];
@@ -765,6 +772,19 @@ var Corruption =
         });
     },
     
+    _AttributesChanged_HP_Down(charId, old_, new_)
+    {
+        var hp = CharacterInfo.Get_Attribute(charId, 'hp');
+        var max = parseInt(hp.get('max'));
+        var removeCorruption = Math.round(max * 0.2); //20%
+        
+        if(old_ > removeCorruption && new_ <= removeCorruption)
+        {
+            CharacterInfo.Get_Attribute(charId, 'corruption-state').set('current', false);
+            CharacterInfo.Get_Attribute(charId, 'corruption').set('current', 0);
+        }
+    },
+    
     _AttributesChanged: function(charId, name, old_, new_)
     {
         if(old_ === null || new_ === null || old_ === undefined || new_ === undefined)
@@ -794,6 +814,12 @@ var Corruption =
                     if(this._GetDirection('current', old_, new_) === 'U')
                     {
                         this._AttributesChanged_Corruption_Up(charId, old_['current'], new_['current']);
+                    }
+                    break;
+                case 'hp':
+                    if(this._GetDirection('current', old_, new_) === 'D' && CharacterInfo.Get_Attribute(charId, 'corruption-state').get('current').toString().toLowerCase() === 'true')
+                    {
+                        this._AttributesChanged_HP_Down(charId, old_['current'], new_['current']);
                     }
                     break;
                 default:
@@ -1082,6 +1108,40 @@ var Corruption =
         token.set('playersedit_bar2', state ? 'false' : 'true');
 
         Chat.Send_GM('Corruption', 'Enable/Disable corruption: '+(state ? 'Enabled' : 'Disabled')+' corruption on "'+name+'"');
+    },
+    
+    _Set_Corruption: function(command)
+    {
+        var components = command.split('|');
+        var name = components[0];
+        var state = components[1].toString().toLowerCase() === 'true';
+        var char = CharacterInfo.Get_CharacterByName(name);
+        if(char === null)
+        {
+            Chat.Send_GM('Corruption', 'Set corruption: Can\'t find character "'+name+'"');
+            return;
+        }
+        
+        var charId = char.get('id');
+        var attributeState = CharacterInfo.Get_Attribute(charId, 'corruption-state');
+        attributeState.set('current', state);
+        attributeState.set('max', -1);
+        
+        var attributeHp = CharacterInfo.Get_Attribute(charId, 'hp');
+        var attributeCorruption = CharacterInfo.Get_Attribute(charId, 'corruption');
+        if(state)
+        {
+            attributeHp.set('current', attributeHp.get('max'));
+            attributeCorruption.set('current', parseInt(attributeCorruption.get('max')) * 2);
+        }
+        else
+        {
+            attributeCorruption.set('current', 0);
+        }
+
+        Chat.Send_GM('Corruption', 'Set corruption: '+(state ? 'Enabled' : 'Disabled')+' corruption on "'+name+'"');
+        Chat.Send_Whisper('Corruption', charId, 'GM manually changed your corruption state.');
+        this.isAdminCommand = true;
     }
 };
 
@@ -1089,6 +1149,7 @@ CharacterInfo.Register_OnPreloadCharacters(function(charId){ Corruption._Preload
 CharacterInfo.Register_OnAtributeUpdate(function(charId, name, old_, new_) { Corruption._AttributesChanged(charId, name, old_, new_); });
 Chat.Register_Api_Command('^\!enable-corruption', function(command) { Corruption._EnableDisable_Corruption(command); });
 Chat.Register_Api_Command('^\!enable-weapon-corruption', function(command) { Corruption._EnableDisable_Weapon_Corruption(command); });
+Chat.Register_Api_Command('^\!set-corruption', function(command) { Corruption._Set_Corruption(command); });
 Chat.Register_Api_Rollresult(function(playerId, results, charId, weaponId) { Corruption._RollResult(playerId, results, charId, weaponId); });
 EventHandler.Register_OnCharMessage(function(message) { Chat._Parse(message); });
 EventHandler.Register_OnReady(function(){ CharacterInfo._Ready(); });
