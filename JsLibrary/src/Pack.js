@@ -312,6 +312,7 @@ var CharacterInfo =
 var Chat = 
 {
     apiCommandEvents: [],
+    rollresultEvents: [],
     
     Send_Whisper_Character(fromId, toId, text)
     {
@@ -344,6 +345,113 @@ var Chat =
         sendChat(as, text, null, {noarchive:true} );
     },
     
+    _Parse_RollResult: function(message)
+    {
+        var content = null;
+        var isAttack = false;
+        try
+        {
+            content = JSON.parse(message['content']);
+        }
+        catch(ex)
+        {
+            content = message['inlinerolls'][0]['results'];
+            isAttack = true;
+        }
+        var buffer = [];
+        _.each(content['rolls'], function(roll)
+        {
+            switch(roll['type'])
+            {
+                case 'M':
+                    var isPositive = roll['expr'].toString().substr(0, 1) === '+';
+                    var result = parseInt(roll['expr'].substr(1, roll['expr'].length - 1));
+                    buffer[buffer.length] = {
+                        'description': roll['expr'],
+                        'results': [isPositive ? result : -result]
+                    };
+                    break;
+                case 'R':
+                    var v = [];
+                    _.each(roll['results'], function(res)
+                    {
+                        v[v.length] = parseInt(res['v']);
+                    });
+                    buffer[buffer.length] = {
+                        'description': roll['dice']+'d'+roll['sides'],
+                        'results': v
+                    };
+                    break;
+                default:
+                    log('_Parse_RollResult');
+                    log(roll);
+                    break;
+                
+            }
+        });
+        var characterId = null;
+        var weaponId = null;
+        if(isAttack)
+        {
+            content = message['content'].toString();
+            
+            var reg1 = new RegExp('\{\{rname=.+\}\}');
+            var reg2 = new RegExp('charname=.+$');
+            
+            if(reg1.test(content) && reg2.test(content))
+            {
+                var rawWeaponName = reg1.exec(content)[0].toString();
+                var rawCharacterName = reg2.exec(content)[0].toString();
+                
+                var weaponName = rawWeaponName.split('}}')[0].substr(8);
+                var characterName = rawCharacterName.substr(9);
+                
+                _.each(CharacterInfo.Characters(), function(charId)
+                {
+                    var cur = CharacterInfo.Get_Character(charId);
+                    if(cur.get('name') === characterName)
+                    {
+                        characterId = cur.id;
+                    }
+                });
+                if(characterId !== null)
+                {
+                    _.each(CharacterInfo.Get_Equipment(characterId), function(equipment)
+                    {
+                        if(equipment['name'] === weaponName)
+                        {
+                            weaponId = equipment['id'];
+                        }
+                    });
+                }
+            }
+        }
+        
+        var playerId = message['playerid'];
+        _.each(this.rollresultEvents, function(callback)
+        {
+            callback(playerId, buffer, characterId, weaponId);
+        });
+    },
+    
+    _Parse_General: function(message)
+    {
+        var playerId = message['playerid'];
+        if(playerId === 'API')
+        {
+            this._Parse_Api(message);
+            return;
+        }
+        if(message.hasOwnProperty('rolltemplate') && message['rolltemplate'] === 'atkdmg')
+        {
+            this._Parse_RollResult(message);
+            return;
+        }
+        
+        log('_Parse_General');
+        log(message);
+    },
+    
     _Parse_Api: function(message)
     {
         var content = message['content'];
@@ -364,6 +472,11 @@ var Chat =
             log('_Parse_Api');
             log(message);
         }
+    },
+    
+    Register_Api_Rollresult(callback)
+    {
+        this.rollresultEvents[this.rollresultEvents.length] = callback;
     },
     
     Register_Api_Command(expression, callback)
@@ -387,8 +500,15 @@ var Chat =
             case 'api':
                 this._Parse_Api(message);
                 break;
+            case 'general':
+                this._Parse_General(message);
+                break;
+            case 'rollresult':
+                this._Parse_RollResult(message);
+                break;
             default:
-                log(type);
+                log('_Parse');
+                log(message);
         }
     }
 };
@@ -433,6 +553,15 @@ var Corruption =
             log(old_);
             log(new_);
         }
+    },
+    
+    _RollResult: function(playerId, results, charId, weaponId)
+    {
+        log('_RollResult');
+        log(playerId);
+        log(results);
+        log(charId);
+        log(weaponId);
     },
     
     _EnableDisable_Weapon_Corruption: function(command)
@@ -523,6 +652,7 @@ CharacterInfo.Register_OnPreloadCharacters(function(charId){ Corruption._Preload
 CharacterInfo.Register_OnAtributeUpdate(function(charId, name, old_, new_) { Corruption._AttributesChanged(charId, name, old_, new_); });
 Chat.Register_Api_Command('^\!enable-corruption', function(command) { Corruption._EnableDisable_Corruption(command); });
 Chat.Register_Api_Command('^\!enable-weapon-corruption', function(command) { Corruption._EnableDisable_Weapon_Corruption(command); });
+Chat.Register_Api_Rollresult(function(playerId, results, charId, weaponId) { Corruption._RollResult(playerId, results, charId, weaponId); });
 EventHandler.Register_OnCharMessage(function(message) { Chat._Parse(message); });
 EventHandler.Register_OnReady(function(){ CharacterInfo._Ready(); });
 EventHandler.Register_OnAddCharacter(function(char){ CharacterInfo._AddCharacter(char); });
