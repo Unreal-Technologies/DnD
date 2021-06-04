@@ -531,6 +531,7 @@ var Corruption =
 {
     charactersWithCorruption: [],
     corruptionRollFor: null,
+    damageRollFor: null,
     
     _PreloadCharacter: function(charId)
     {
@@ -554,6 +555,57 @@ var Corruption =
         });
     },
     
+    _AttributesChanged_Corruption_Event: function(x, of, charId)
+    {
+        if(x === of)
+        {
+            log('_AttributesChanged_Corruption_Event');
+            log('CORRUPTED!');
+            return;
+        }
+        
+        var passive = this._LevelSpecificPassives(charId);
+        if(passive['downside'] !== null)
+        {
+            var downside = passive['downside'];
+            switch(downside['type'])
+            {
+                case 'plain-damage':
+                    this.damageRollFor = charId;
+                    Chat.Send_Global('Corruption', '/roll '+downside['roll']);
+                    break;
+                default:
+                    log('_AttributesChanged_Corruption_Event');
+                    log(charId);
+                    log(x);
+                    log(of);
+                    log(downside);
+                    break;
+            }
+            
+        }
+    },
+    
+    _AttributesChanged_Corruption_Up: function(charId, old_, new_)
+    {
+        var max = parseInt(CharacterInfo.Get_Attribute(charId, 'corruption').get('max'));
+        var divider = 4;
+        var parts = [];
+        for(var i=0; i<divider; i++)
+        {
+            var part = Math.round((max/divider)*(i+1));
+            parts[parts.length] = part;
+        }
+        
+        for(var i=divider-1; i>=0; i--)
+        {
+            if(old_ < parts[i] && new_ >= parts[i])
+            {
+                this._AttributesChanged_Corruption_Event(i+1, divider, charId);
+            }
+        }
+    },
+    
     _AttributesChanged: function(charId, name, old_, new_)
     {
         if(old_ === null || new_ === null || old_ === undefined || new_ === undefined)
@@ -563,17 +615,73 @@ var Corruption =
         
         if(this.charactersWithCorruption.indexOf(charId) !== -1)
         {
-            log('_AttributesChanged');
-            log(name);
-            log(old_);
-            log(new_);
+            switch(name)
+            {
+                case 'corruption':
+                    if(this._GetDirection('current', old_, new_) === 'U')
+                    {
+                        this._AttributesChanged_Corruption_Up(charId, old_['current'], new_['current']);
+                    }
+                    break;
+                default:
+                    log('_AttributesChanged');
+                    log(name);
+                    log(old_);
+                    log(new_);
+                    break;
+            }
+            
+            
         }
+    },
+    
+    _GetDirection: function(key, old_, new_)
+    {
+        var o = old_[key];
+        var n = new_[key];
+        
+        if(isNaN(o) || isNaN(n) || o === n)
+        {
+            return 'N';
+        }
+        if(parseInt(o) < parseInt(n))
+        {
+            return 'U';
+        }
+        return 'D';
     },
     
     _RollResult: function(playerId, results, charId, weaponId)
     {
         this._RollResult_Attack(playerId, results, charId, weaponId);
         this._RollResult_Corruption(playerId, results, charId, weaponId);
+        this._RollResult_Damage(playerId, results, charId, weaponId)
+    },
+    
+    _RollResult_Damage: function(playerId, results, charId, weaponId)
+    {
+        if(charId !== null || weaponId !== null) //Defined Roll Result
+        {
+            return;
+        }
+        if(this.damageRollFor === null || playerId !== 'API') //Target correct player/character
+        {
+            return;
+        }
+        
+        charId = this.damageRollFor;
+        this.damageRollFor = null;
+        
+        var hpAttribute = CharacterInfo.Get_Attribute(charId, 'hp');
+        var downside = this._LevelSpecificPassives(charId)['downside'];
+        var sum = 0;
+        _.each(results[0]['results'], function(value)
+        {
+            sum += value;
+        });
+        
+        hpAttribute.set('current', parseInt(hpAttribute.get('current')) - sum);
+        Chat.Send_Whisper('Corruption', charId, downside['text'].replace('{D}', sum));
     },
     
     _RollResult_Corruption: function(playerId, results, charId, weaponId)
@@ -611,7 +719,8 @@ var Corruption =
             return {
                 'tier': 5,
                 'turns': null,
-                'dice': null
+                'dice': null,
+                'downside': null
             };
         }
         else if(level >= 16)
@@ -619,7 +728,10 @@ var Corruption =
             return {
                 'tier': 4,
                 'turns': 20,
-                'dice': '1d4'
+                'dice': '1d4',
+                'downside': {
+                    'type': 'summon'
+                }
             };
         }
         else if(level >= 13)
@@ -627,7 +739,14 @@ var Corruption =
             return {
                 'tier': 3,
                 'turns': 15,
-                'dice': '1d6'
+                'dice': '1d6',
+                'downside': {
+                    'type': 'corruption',
+                    'roll': '1d20 + WIS',
+                    'comp': 15,
+                    'roll-fail': '2d8',
+                    'text-fail': 'You are corrupted for <span style="color: red"><b>{D}</b></span>  turns.'
+                }
             };
         }
         else if(level >= 10)
@@ -635,7 +754,14 @@ var Corruption =
             return {
                 'tier': 2,
                 'turns': 10,
-                'dice': '1d8'
+                'dice': '1d8',
+                'downside': {
+                    'type': 'disarm',
+                    'roll': '1d20',
+                    'comp': 12,
+                    'roll-fail': '1d8',
+                    'text-fail': 'You lost your weapons for <span style="color: red"><b>{D}</b></span>  turns.'
+                }
             };
         }
         else if(level >= 7)
@@ -643,13 +769,19 @@ var Corruption =
             return {
                 'tier': 1,
                 'turns': 5,
-                'dice': '1d10'
+                'dice': '1d10',
+                'downside': {
+                    'type': 'plain-damage',
+                    'roll': '2d8',
+                    'text': 'You feel your body burning up. taking <span style="color: red"><b>{D}</b></span> fire damage from the inside out'
+                }
             };
         }
         return {
             'tier': 0,
             'turns': null,
-            'dice': null
+            'dice': null,
+            'downside': null
         };
     },
     
@@ -683,8 +815,11 @@ var Corruption =
         
         var passive = this._LevelSpecificPassives(charId);
 
-        this.corruptionRollFor = [playerId, charId];
-        Chat.Send_Global('Corruption', '/roll '+passive['dice']);
+        if(passive['dice'] !== null)
+        {
+            this.corruptionRollFor = [playerId, charId];
+            Chat.Send_Global('Corruption', '/roll '+passive['dice']);
+        }
     },
     
     _EnableDisable_Weapon_Corruption: function(command)
