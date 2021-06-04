@@ -5,3 +5,4 @@ Config Character sheets:
 Commands:
 !enable-corruption [character-name]|(true|false)
 !enable-weapon-corruption [character-name]|[weapon-name]|(true|false)
+!set-corruption [character-name]|(true|false)
