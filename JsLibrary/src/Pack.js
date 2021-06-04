@@ -739,6 +739,12 @@ var Corruption =
         }
         
         var charId = char.get('id');
+        var token = CharacterInfo.Get_Token(charId);
+        if(token === null)
+        {
+            Chat.Send_GM('Corruption', 'Enable/Disable corruption: Can\'t Enable/Disable corruption for character "'+name+'", no token found!');
+        }
+        
         var attribute = CharacterInfo.Get_Attribute(charId, 'corruption');
         attribute.set('max', state ? 100 :  '');
         attribute.set('current', state ? 0 : '');
@@ -759,11 +765,12 @@ var Corruption =
             });
             this.charactersWithCorruption = buffer;
         }
-        var token = CharacterInfo.Get_Token(charId);
-        
+
         token.set('bar2_max', state ? attribute.get('max') : '');
         token.set('bar2_value', state ? attribute.get('current') : '');
         token.set('bar2_link', state ? attribute.get('id') : '');
+        token.set('showplayers_bar2', state ? 'true' : 'false');
+        token.set('playersedit_bar2', state ? 'false' : 'true');
 
         Chat.Send_GM('Corruption', 'Enable/Disable corruption: '+(state ? 'Enabled' : 'Disabled')+' corruption on "'+name+'"');
     }
