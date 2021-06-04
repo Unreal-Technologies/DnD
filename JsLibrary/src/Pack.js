@@ -742,10 +742,11 @@ var Corruption =
                 'dice': '1d6',
                 'downside': {
                     'type': 'corruption',
-                    'roll': '1d20 + WIS',
+                    'roll': '1d20',
+                    'mod': 'wisdom_mod',
                     'comp': 15,
                     'roll-fail': '2d8',
-                    'text-fail': 'You are corrupted for <span style="color: red"><b>{D}</b></span>  turns.'
+                    'text-fail': 'You are corrupted for <span style="color: red"><b>{D}</b></span> turns.'
                 }
             };
         }
@@ -760,7 +761,7 @@ var Corruption =
                     'roll': '1d20',
                     'comp': 12,
                     'roll-fail': '1d8',
-                    'text-fail': 'You lost your weapons for <span style="color: red"><b>{D}</b></span>  turns.'
+                    'text-fail': 'You lost your weapons for <span style="color: red"><b>{D}</b></span> turns.'
                 }
             };
         }
@@ -773,7 +774,7 @@ var Corruption =
                 'downside': {
                     'type': 'plain-damage',
                     'roll': '2d8',
-                    'text': 'You feel your body burning up. taking <span style="color: red"><b>{D}</b></span> fire damage from the inside out'
+                    'text': 'You feel your body burning up. taking <span style="color: red"><b>{D}</b></span> fire damage from the inside out.'
                 }
             };
         }
