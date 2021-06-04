@@ -72,6 +72,20 @@ var CharacterInfo =
         this._CharacterChecker();
     },
     
+    Get_CharacterByName: function(name)
+    {
+        var char = null;
+        _.each(CharacterInfo.Characters(), function(charId)
+        {
+            var cur = CharacterInfo.Get_Character(charId);
+            if(cur.get('name') === name)
+            {
+                char = cur;
+            }
+        });  
+        return char;
+    },
+    
     Get_Character: function(charId)
     {
         return this.objectdata[charId]['char'];
@@ -382,6 +396,7 @@ var Chat =
                         'results': v
                     };
                     break;
+                case 'L': break;
                 default:
                     log('_Parse_RollResult');
                     log(roll);
@@ -507,15 +522,15 @@ var Chat =
                 this._Parse_RollResult(message);
                 break;
             default:
-                log('_Parse');
-                log(message);
+                break;
         }
     }
 };
 
 var Corruption = 
 {
-    playersWithCorruption: [],
+    charactersWithCorruption: [],
+    corruptionRollFor: null,
     
     _PreloadCharacter: function(charId)
     {
@@ -524,9 +539,9 @@ var Corruption =
         {
             CharacterInfo.Create_Attribute(charId, 'corruption', 0, 0);
         }
-        else if(parseInt(corruption['max']) !== 0 && this.playersWithCorruption.indexOf(charId) === -1)
+        else if(parseInt(corruption['max']) !== 0 && this.charactersWithCorruption.indexOf(charId) === -1)
         {
-            this.playersWithCorruption[this.playersWithCorruption.length] = charId;
+            this.charactersWithCorruption[this.charactersWithCorruption.length] = charId;
         }
         
         _.each(CharacterInfo.Get_Equipment(charId), function(equipment)
@@ -534,7 +549,7 @@ var Corruption =
             var key = 'repeating_attack_'+equipment['id']+'_corruption';
             if(CharacterInfo.Get_Attribute(charId, key) === null)
             {
-                CharacterInfo.Create_Attribute(charId, key, 'false', null);
+                CharacterInfo.Create_Attribute(charId, key, 'false', '');
             }
         });
     },
@@ -546,7 +561,7 @@ var Corruption =
             return;
         }
         
-        if(this.playersWithCorruption.indexOf(charId) !== -1)
+        if(this.charactersWithCorruption.indexOf(charId) !== -1)
         {
             log('_AttributesChanged');
             log(name);
@@ -557,11 +572,119 @@ var Corruption =
     
     _RollResult: function(playerId, results, charId, weaponId)
     {
-        log('_RollResult');
-        log(playerId);
-        log(results);
-        log(charId);
-        log(weaponId);
+        this._RollResult_Attack(playerId, results, charId, weaponId);
+        this._RollResult_Corruption(playerId, results, charId, weaponId);
+    },
+    
+    _RollResult_Corruption: function(playerId, results, charId, weaponId)
+    {
+        if(charId !== null || weaponId !== null) //Defined Roll Result
+        {
+            return;
+        }
+        if(this.corruptionRollFor === null || playerId !== 'API') //Target correct player/character
+        {
+            return;
+        }
+        charId = this.corruptionRollFor[1];
+        this.corruptionRollFor = null;
+        
+        var result = results[0]['results'][0];
+        var char = CharacterInfo.Get_Character(charId);
+
+        Chat.Send_Whisper('Corruption', charId, 'You gained <span style="color: red"><b>'+result+'</b></span> corruption.');
+        Chat.Send_GM('Corruption', char.get('name') + ' gained <span style="color: red"><b>'+result+'</b></span> corruption points.');
+        
+        var corruptionAttribute = CharacterInfo.Get_Attribute(charId, 'corruption');
+        var corruption = parseInt(corruptionAttribute.get('current'));
+        
+        corruptionAttribute.set('current', corruption + result);
+    },
+    
+    _LevelSpecificPassives: function(charId)
+    {
+        var levelAttribute = CharacterInfo.Get_Attribute(charId, 'level');
+        var level = parseInt(levelAttribute.get('current'));
+        
+        if(level >= 20)
+        {
+            return {
+                'tier': 5,
+                'turns': null,
+                'dice': null
+            };
+        }
+        else if(level >= 16)
+        {
+            return {
+                'tier': 4,
+                'turns': 20,
+                'dice': '1d4'
+            };
+        }
+        else if(level >= 13)
+        {
+            return {
+                'tier': 3,
+                'turns': 15,
+                'dice': '1d6'
+            };
+        }
+        else if(level >= 10)
+        {
+            return {
+                'tier': 2,
+                'turns': 10,
+                'dice': '1d8'
+            };
+        }
+        else if(level >= 7)
+        {
+            return {
+                'tier': 1,
+                'turns': 5,
+                'dice': '1d10'
+            };
+        }
+        return {
+            'tier': 0,
+            'turns': null,
+            'dice': null
+        };
+    },
+    
+    _RollResult_Attack: function(playerId, results, charId, weaponId)
+    {
+        if(charId === null || weaponId === null) //Undefined Roll Result
+        {
+            return;
+        }
+        if(playerId === 'API')
+        {
+            return;
+        }
+        if(this.charactersWithCorruption.indexOf(charId) === -1) //Has corruption enabled
+        {
+            return;
+        }
+        var key = 'repeating_attack_'+weaponId+'_corruption';
+        var weaponCorruptionAttribute = CharacterInfo.Get_Attribute(charId, key);
+        
+        if(weaponCorruptionAttribute === undefined)
+        {
+            return;
+        }
+        
+        var state = weaponCorruptionAttribute.get('current').toString().toLowerCase() === 'true';
+        if(!state)
+        {
+            return;
+        }
+        
+        var passive = this._LevelSpecificPassives(charId);
+
+        this.corruptionRollFor = [playerId, charId];
+        Chat.Send_Global('Corruption', '/roll '+passive['dice']);
     },
     
     _EnableDisable_Weapon_Corruption: function(command)
@@ -570,15 +693,7 @@ var Corruption =
         var char_name = components[0];
         var weapon_name = components[1];
         var state = components[2].toString().toLowerCase() === 'true';
-        var char = null;
-        _.each(CharacterInfo.Characters(), function(charId)
-        {
-            var cur = CharacterInfo.Get_Character(charId);
-            if(cur.get('name') === char_name)
-            {
-                char = cur;
-            }
-        });
+        var char = CharacterInfo.Get_CharacterByName(char_name);
         if(char === null)
         {
             Chat.Send_GM('Corruption', 'Enable/Disable weapon corruption: Can\'t find character "'+char_name+'".');
@@ -599,7 +714,14 @@ var Corruption =
         }
         var key = 'repeating_attack_'+weapon['id']+'_corruption';
         var attribute = CharacterInfo.Get_Attribute(char.id, key);
-        attribute.set('current', state ? 'true' : 'false');
+        if(attribute !== null && attribute !== undefined)
+        {
+            attribute.set('current', state ? 'true' : 'false');
+        }
+        else
+        {
+            CharacterInfo.Create_Attribute(char.id, key, state ? 'true' : 'false', '');
+        }
         
         Chat.Send_GM('Corruption', 'Enable/Disable weapon corruption: '+(state ? 'Enabled' : 'Disabled')+' corruption on weapon "'+weapon_name+'" of character "'+char_name+'".');
     },
@@ -609,15 +731,7 @@ var Corruption =
         var components = command.split('|');
         var name = components[0];
         var state = components[1].toString().toLowerCase() === 'true';
-        var char = null;
-        _.each(CharacterInfo.Characters(), function(charId)
-        {
-            var cur = CharacterInfo.Get_Character(charId);
-            if(cur.get('name') === name)
-            {
-                char = cur;
-            }
-        });
+        var char = CharacterInfo.Get_CharacterByName(name);
         if(char === null)
         {
             Chat.Send_GM('Corruption', 'Enable/Disable corruption: Can\'t find character "'+name+'"');
@@ -626,10 +740,12 @@ var Corruption =
         
         var charId = char.get('id');
         var attribute = CharacterInfo.Get_Attribute(charId, 'corruption');
-        attribute.set('max', state ? 100 : 0);
+        attribute.set('max', state ? 100 :  '');
+        attribute.set('current', state ? 0 : '');
+        
         if(state)
         {
-            this.playersWithCorruption[this.playersWithCorruption.length] = charId;
+            this.charactersWithCorruption[this.charactersWithCorruption.length] = charId;
         }
         else
         {
@@ -641,8 +757,13 @@ var Corruption =
                     buffer[buffer.length] = id;
                 }
             });
-            this.playersWithCorruption = buffer;
+            this.charactersWithCorruption = buffer;
         }
+        var token = CharacterInfo.Get_Token(charId);
+        
+        token.set('bar2_max', state ? attribute.get('max') : '');
+        token.set('bar2_value', state ? attribute.get('current') : '');
+        token.set('bar2_link', state ? attribute.get('id') : '');
 
         Chat.Send_GM('Corruption', 'Enable/Disable corruption: '+(state ? 'Enabled' : 'Disabled')+' corruption on "'+name+'"');
     }
