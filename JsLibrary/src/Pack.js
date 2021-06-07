@@ -294,7 +294,11 @@ var CharacterInfo =
     _LoadCharacterData: function(char)
     {
         var id = char.id;
-        var tokenObject = null;
+        var tokenObject = findObjs(
+        {
+            _type: 'graphic',
+            represents: char.id
+        })[0];
         var attributeInfo = this._LoadCharacterAttributes(char);
 
         this.objectdata[id] = {
@@ -303,21 +307,6 @@ var CharacterInfo =
             'attributes': attributeInfo['attributes'],
             'equipment': this._LoadCharacterEquipment(attributeInfo['equipment'])
         };
-
-        var self = this;
-        char.get('defaulttoken', function(token)
-        {
-            self.objectdata[id]['token'] = JSON.parse(token);
-            if(self.objectdata[id]['token'] !== null)
-            {
-                self.objectdata[id]['token'] = findObjs(
-                {
-                    _type: 'graphic',
-                    represents: char.id
-                })[0];
-            }
-        });
-        
         this.attributes[id] = this._GetAttributes(id);
     },
     
@@ -546,7 +535,7 @@ var Corruption =
     _PreloadCharacter: function(charId)
     {
         var corruption = CharacterInfo.Get_Attribute(charId, 'corruption');
-        if(corruption === undefined)
+        if(corruption === undefined || corruption === null)
         {
             CharacterInfo.Create_Attribute(charId, 'corruption', 0, 0);
         }
@@ -555,7 +544,8 @@ var Corruption =
             this.charactersWithCorruption[this.charactersWithCorruption.length] = charId;
         }
         
-        if(CharacterInfo.Get_Attribute(charId, 'corruption-state') === undefined)
+        var corruptionState = CharacterInfo.Get_Attribute(charId, 'corruption-state');
+        if(corruptionState === undefined || corruptionState === null)
         {
             CharacterInfo.Create_Attribute(charId, 'corruption-state', false, 0);
         }
@@ -563,7 +553,8 @@ var Corruption =
         _.each(CharacterInfo.Get_Equipment(charId), function(equipment)
         {
             var key = 'repeating_attack_'+equipment['id']+'_corruption';
-            if(CharacterInfo.Get_Attribute(charId, key) === null)
+            var attrKey = CharacterInfo.Get_Attribute(charId, key);
+            if(attrKey === null || attrKey === undefined)
             {
                 CharacterInfo.Create_Attribute(charId, key, 'false', '');
             }
@@ -1062,6 +1053,7 @@ var Corruption =
         if(token === null)
         {
             Chat.Send_GM('Corruption', 'Enable/Disable corruption: Can\'t Enable/Disable corruption for character "'+name+'", no token found!');
+            return;
         }
         
         var attribute = CharacterInfo.Get_Attribute(charId, 'corruption');
