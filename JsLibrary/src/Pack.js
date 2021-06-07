@@ -521,7 +521,7 @@ var Chat =
         {
             return;
         }
-        
+
         switch(type)
         {
             case 'api':
@@ -530,6 +530,7 @@ var Chat =
             case 'general':
                 this._Parse_General(message);
                 break;
+            case 'gmrollresult':
             case 'rollresult':
                 this._Parse_RollResult(message);
                 break;
@@ -597,7 +598,7 @@ var Corruption =
             {
                 case 'plain-damage':
                     this.damageRollFor = charId;
-                    Chat.Send_Global('Corruption', '/roll '+downside['roll']);
+                    Chat.Send_Global('Corruption', '/gmroll '+downside['roll']);
                     break;
                 default:
                     log('_AttributesChanged_Corruption_Event');
@@ -1019,7 +1020,7 @@ var Corruption =
         if(passive['dice'] !== null)
         {
             this.corruptionRollFor = [playerId, charId];
-            Chat.Send_Global('Corruption', '/roll '+passive['dice']);
+            Chat.Send_Global('Corruption', '/gmroll '+passive['dice']);
         }
     },
     
