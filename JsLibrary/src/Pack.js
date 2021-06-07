@@ -886,6 +886,11 @@ var Corruption =
     _LevelSpecificPassives: function(charId)
     {
         var levelAttribute = CharacterInfo.Get_Attribute(charId, 'level');
+        if(levelAttribute === null || levelAttribute === undefined)
+        {
+            CharacterInfo.Create_Attribute(charId, 'level', 1, '');
+            levelAttribute = CharacterInfo.Get_Attribute(charId, 'level');
+        }
         var level = parseInt(levelAttribute.get('current'));
         
         if(level >= 20)
