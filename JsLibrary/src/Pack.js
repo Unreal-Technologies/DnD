@@ -1,3 +1,6 @@
+/**
+ * Copyright: Peter Overeijnder (Unknownmephi) 2021
+ */
 var EventHandler =
 {
     readyEvents: [],
@@ -1181,7 +1184,8 @@ var Corruption =
     }
 };
 
-var Turn = {
+var Turn = 
+{
     turn: 0,
     turnChangeEvents: [],
     
