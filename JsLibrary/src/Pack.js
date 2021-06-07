@@ -1,3 +1,6 @@
+/**
+ * Copyright: Peter Overeijnder (Unknownmephi) 2021
+ */
 var EventHandler =
 {
     readyEvents: [],
@@ -410,8 +413,6 @@ var Chat =
                     break;
                 case 'L': break;
                 default:
-                    log('_Parse_RollResult');
-                    log(roll);
                     break;
                 
             }
@@ -474,9 +475,6 @@ var Chat =
             this._Parse_RollResult(message);
             return;
         }
-        
-        log('_Parse_General');
-        log(message);
     },
     
     _Parse_Api: function(message)
@@ -494,11 +492,6 @@ var Chat =
                 hasMatch = true;
             }
         });
-        if(!hasMatch)
-        {
-            log('_Parse_Api');
-            log(message);
-        }
     },
     
     Register_Api_Rollresult(callback)
@@ -601,11 +594,6 @@ var Corruption =
                     Chat.Send_Global('Corruption', '/gmroll '+downside['roll']);
                     break;
                 default:
-                    log('_AttributesChanged_Corruption_Event');
-                    log(charId);
-                    log(x);
-                    log(of);
-                    log(downside);
                     break;
             }
             
@@ -825,14 +813,8 @@ var Corruption =
                     }
                     break;
                 default:
-                    log('_AttributesChanged');
-                    log(name);
-                    log(old_);
-                    log(new_);
                     break;
             }
-            
-            
         }
     },
     
@@ -1181,7 +1163,8 @@ var Corruption =
     }
 };
 
-var Turn = {
+var Turn = 
+{
     turn: 0,
     turnChangeEvents: [],
     
