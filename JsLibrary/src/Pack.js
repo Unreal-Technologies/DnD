@@ -379,31 +379,41 @@ var Chat =
         var buffer = [];
         _.each(content['rolls'], function(roll)
         {
-            switch(roll['type'])
+            if(typeof roll['expr'] === 'number')
             {
-                case 'M':
-                    var isPositive = roll['expr'].toString().substr(0, 1) === '+';
-                    var result = parseInt(roll['expr'].substr(1, roll['expr'].length - 1));
-                    buffer[buffer.length] = {
-                        'description': roll['expr'],
-                        'results': [isPositive ? result : -result]
-                    };
-                    break;
-                case 'R':
-                    var v = [];
-                    _.each(roll['results'], function(res)
-                    {
-                        v[v.length] = parseInt(res['v']);
-                    });
-                    buffer[buffer.length] = {
-                        'description': roll['dice']+'d'+roll['sides'],
-                        'results': v
-                    };
-                    break;
-                case 'L': break;
-                default:
-                    break;
-                
+                buffer[buffer.length] = {
+                    'description': roll['expr'],
+                    'results': [parseInt(roll['expr'], 10)]
+                };
+            }
+            else
+            {
+                switch(roll['type'])
+                {
+                    case 'M':
+                        var isPositive = roll['expr'].toString().substr(0, 1) === '+';
+                        var result = parseInt(roll['expr'].substr(1, roll['expr'].length - 1), 10);
+                        buffer[buffer.length] = {
+                            'description': roll['expr'],
+                            'results': [isPositive ? result : -result]
+                        };
+                        break;
+                    case 'R':
+                        var v = [];
+                        _.each(roll['results'], function(res)
+                        {
+                            v[v.length] = parseInt(res['v']);
+                        });
+                        buffer[buffer.length] = {
+                            'description': roll['dice']+'d'+roll['sides'],
+                            'results': v
+                        };
+                        break;
+                    case 'L': break;
+                    default:
+                        break;
+
+                }
             }
         });
         var characterId = null;
