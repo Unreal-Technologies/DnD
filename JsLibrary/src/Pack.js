@@ -365,8 +365,8 @@ var Chat =
     
     _Parse_RollResult: function(message)
     {
-        var content = null;
-        var isAttack = false;
+        let content = null;
+        let isAttack = false;
         try
         {
             content = JSON.parse(message['content']);
@@ -376,7 +376,7 @@ var Chat =
             content = message['inlinerolls'][0]['results'];
             isAttack = true;
         }
-        var buffer = [];
+        let buffer = [];
         _.each(content['rolls'], function(roll)
         {
             if(typeof roll['expr'] === 'number')
@@ -391,21 +391,37 @@ var Chat =
                 switch(roll['type'])
                 {
                     case 'M':
-                        var isPositive = roll['expr'].toString().substr(0, 1) === '+';
-                        var result = parseInt(roll['expr'].substr(1, roll['expr'].length - 1), 10);
+                        let isPositive = roll['expr'].toString().substr(0, 1) === '+';
+                        let result = parseInt(roll['expr'].substr(1, roll['expr'].length - 1), 10);
                         buffer[buffer.length] = {
                             'description': roll['expr'],
                             'results': [isPositive ? result : -result]
                         };
                         break;
                     case 'R':
-                        var v = [];
+                        let v = [];
+                        let description = roll['dice']+'d'+roll['sides'];
+                        let isFirst = true;
                         _.each(roll['results'], function(res)
                         {
-                            v[v.length] = parseInt(res['v']);
+                            let mods = roll['mods'];
+                            if(mods['success'] !== undefined)
+                            {
+                                let success = mods['success'];
+                                if(isFirst)
+                                {
+                                    description += success['comp']+success['point'];
+                                    isFirst = false;
+                                }
+                                v[v.length] = eval(res['v']+success['comp']+success['point']);
+                            }
+                            else
+                            {
+                                v[v.length] = parseInt(res['v'], 10);
+                            }
                         });
                         buffer[buffer.length] = {
-                            'description': roll['dice']+'d'+roll['sides'],
+                            'description': description,
                             'results': v
                         };
                         break;
@@ -416,22 +432,22 @@ var Chat =
                 }
             }
         });
-        var characterId = null;
-        var weaponId = null;
+        let characterId = null;
+        let weaponId = null;
         if(isAttack)
         {
             content = message['content'].toString();
             
-            var reg1 = new RegExp('\{\{rname=.+\}\}');
-            var reg2 = new RegExp('charname=.+$');
+            let reg1 = new RegExp('\{\{rname=.+\}\}');
+            let reg2 = new RegExp('charname=.+$');
             
             if(reg1.test(content) && reg2.test(content))
             {
-                var rawWeaponName = reg1.exec(content)[0].toString();
-                var rawCharacterName = reg2.exec(content)[0].toString();
+                let rawWeaponName = reg1.exec(content)[0].toString();
+                let rawCharacterName = reg2.exec(content)[0].toString();
                 
-                var weaponName = rawWeaponName.split('}}')[0].substr(8);
-                var characterName = rawCharacterName.substr(9);
+                let weaponName = rawWeaponName.split('}}')[0].substr(8);
+                let characterName = rawCharacterName.substr(9);
                 
                 _.each(CharacterInfo.Characters(), function(charId)
                 {
@@ -536,11 +552,14 @@ var Corruption =
 {
     charactersWithCorruption: [],
     corruptionRollFor: null,
+    disarmRollFor: null,
+    disarmTurnsRollFor: null,
     damageRollFor: null,
     auraIndex: {},
     tokenResize: {},
     isAdminCommand: false,
     turnCounter: {},
+    lastWeaponId: null,
 
     _PreloadCharacter: function(charId)
     {
@@ -575,24 +594,31 @@ var Corruption =
     {
         if(x === of)
         {
-            var state = CharacterInfo.Get_Attribute(charId, 'corruption-state');
+            let state = CharacterInfo.Get_Attribute(charId, 'corruption-state');
             state.set('current', 'true');
             state.set('max', -1);
             
-            var hp = CharacterInfo.Get_Attribute(charId, 'hp');
+            let hp = CharacterInfo.Get_Attribute(charId, 'hp');
             hp.set('current', hp.get('max'));
             return;
         }
         
-        var passive = this._LevelSpecificPassives(charId);
+        this.disarmRollFor = null;
+        this.damageRollFor = null;
+        this.disarmTurnsRollFor = null;
+        let passive = this._LevelSpecificPassives(charId);
         if(passive['downside'] !== null)
         {
-            var downside = passive['downside'];
+            let downside = passive['downside'];
             switch(downside['type'])
             {
                 case 'plain-damage':
                     this.damageRollFor = charId;
                     Chat.Send_Global('Corruption', '/gmroll '+downside['roll']);
+                    break;
+                case 'disarm':
+                    this.disarmRollFor = charId;
+                    Chat.Send_Global('Corruption', '/gmroll '+downside['roll']+'>'+downside['comp']);
                     break;
                 default:
                     break;
@@ -600,7 +626,7 @@ var Corruption =
             
         }
     },
-    
+
     _AttributesChanged_Corruption_Up: function(charId, old_, new_)
     {
         if(this.isAdminCommand)
@@ -839,7 +865,63 @@ var Corruption =
     {
         this._RollResult_Attack(playerId, results, charId, weaponId);
         this._RollResult_Corruption(playerId, results, charId, weaponId);
-        this._RollResult_Damage(playerId, results, charId, weaponId)
+        this._RollResult_Damage(playerId, results, charId, weaponId);
+        this._RollResult_DisarmTurns(playerId, results, charId, weaponId);
+        this._RollResult_Disarm(playerId, results, charId, weaponId);
+    },
+    
+    _RollResult_DisarmTurns: function(playerId, results, charId, weaponId)
+    {
+        if(charId !== null || weaponId !== null) //Defined Roll Result
+        {
+            return;
+        }
+        if(this.disarmTurnsRollFor === null || playerId !== 'API') //Target correct player/character
+        {
+            return;
+        }
+        
+        let downside = this._LevelSpecificPassives(this.disarmTurnsRollFor)['downside'];
+        let weapon = CharacterInfo.Get_Attribute(this.disarmTurnsRollFor, 'repeating_attack_'+this.lastWeaponId+'_atkname');
+        let char = CharacterInfo.Get_Character(this.disarmTurnsRollFor);
+        let text = downside['text-fail'].replace('{W}', weapon.get('current')).replace('{D}', results[0]['results'][0]);
+
+        Chat.Send_GM('Corruption', text.replace('{T}', char.get('name')).replace('{S}', 'his/her'));
+        Chat.Send_Whisper('Corruption', this.disarmTurnsRollFor, text.replace('{T}', 'You').replace('{S}', 'your'));
+    },
+    
+    _RollResult_Disarm: function(playerId, results, charId, weaponId)
+    {
+        if(charId !== null || weaponId !== null) //Defined Roll Result
+        {
+            return;
+        }
+        if(this.disarmRollFor === null || playerId !== 'API') //Target correct player/character
+        {
+            return;
+        }
+        var successes = 0;
+        var isInt = false;
+        _.each(results[0]['results'], function(value)
+        {
+           successes += value === true ? 1 : 0;
+           if(Number.isInteger(value))
+           {
+               isInt = true;
+           }
+        });
+        
+        if(isInt || successes > 0) //is Non-Compare Roll or has 1 or more successes
+        {
+            return;
+        }
+        
+        let downside = this._LevelSpecificPassives(this.disarmRollFor)['downside'];
+
+        this.disarmTurnsRollFor = this.disarmRollFor;
+        this.disarmRollFor = null;
+        
+        Chat.Send_Global('Corruption', '/gmroll '+downside['roll-fail']);
     },
     
     _RollResult_Damage: function(playerId, results, charId, weaponId)
@@ -950,7 +1032,7 @@ var Corruption =
                     'roll': '1d20',
                     'comp': 12,
                     'roll-fail': '1d8',
-                    'text-fail': 'You lost your weapons for <span style="color: red"><b>{D}</b></span> turns.'
+                    'text-fail': '{T} lost {S} <span style="color: gold;">{W}</span> for <span style="color: red;"><b>{D}</b></span> turns.'
                 }
             };
         }
@@ -990,6 +1072,7 @@ var Corruption =
             return;
         }
         var key = 'repeating_attack_'+weaponId+'_corruption';
+        this.lastWeaponId = weaponId;
         var weaponCorruptionAttribute = CharacterInfo.Get_Attribute(charId, key);
         
         if(weaponCorruptionAttribute === undefined)
