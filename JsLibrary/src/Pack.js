@@ -560,6 +560,7 @@ var Corruption =
     isAdminCommand: false,
     turnCounter: {},
     lastWeaponId: null,
+    disarmment: [],
 
     _PreloadCharacter: function(charId)
     {
@@ -888,6 +889,12 @@ var Corruption =
 
         Chat.Send_GM('Corruption', text.replace('{T}', char.get('name')).replace('{S}', 'his/her'));
         Chat.Send_Whisper('Corruption', this.disarmTurnsRollFor, text.replace('{T}', 'You').replace('{S}', 'your'));
+        
+        this.disarmment[this.disarmment.length] = {
+            'CharId': this.disarmTurnsRollFor,
+            'WeaponId': this.lastWeaponId,
+            'Count': parseInt(results[0]['results'][0], 10)
+        };
     },
     
     _RollResult_Disarm: function(playerId, results, charId, weaponId)
@@ -1216,6 +1223,42 @@ var Corruption =
             
             self.turnCounter[charId]++;
         });
+        
+        if(this.disarmment.length !== 0)
+        {
+            this._OnTurnChange_Disarmment();
+        }
+    },
+    
+    _OnTurnChange_Disarmment: function()
+    {
+        let newList = [];
+        for(let i=0; i<this.disarmment.length; i++)
+        {
+            let data = this.disarmment[i];
+            if(data['Count'] === -1)
+            {
+                continue;
+            }
+
+            let weapon = CharacterInfo.Get_Attribute(data['CharId'], 'repeating_attack_'+data['WeaponId']+'_atkname');
+            if(data['Count'] === 1)
+            {
+                Chat.Send_Whisper('Corruption', data['CharId'], 'You get your <span style="color: gold;">{W}</span> back next turn.'.replace('{W}', weapon.get('current')));
+            }
+            else if(data['Count'] === 0)
+            {
+                Chat.Send_Whisper('Corruption', data['CharId'], 'You got your <span style="color: gold;">{W}</span> back.'.replace('{W}', weapon.get('current')));
+            }
+            else
+            {
+                Chat.Send_Whisper('Corruption', data['CharId'], 'You get your <span style="color: gold;">{W}</span> back in <span style="color: red;">{X}</span> turns.'.replace('{X}', data['Count']).replace('{W}', weapon.get('current')));
+            }
+            
+            data['Count']--;
+            newList[newList.length] = data;
+        }
+        this.disarmment = newList;
     },
     
     _Set_Corruption: function(command)
